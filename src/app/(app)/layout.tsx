@@ -71,8 +71,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto max-w-6xl p-6 sm:p-8">{children}</div>
         <footer className="flex flex-col items-center justify-between gap-1 border-t border-border px-6 py-4 text-xs text-muted sm:flex-row sm:px-8">
           <span>
-            © {new Date().getFullYear()} Auto Peças System. Todos os direitos
-            reservados.
+            © {new Date().getFullYear()} {empresa?.nomeFantasia ?? "Auto Peças System"}.
+            Todos os direitos reservados.
           </span>
           <span>Desenvolvido por Wesley Vinicius</span>
         </footer>
