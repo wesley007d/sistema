@@ -31,8 +31,8 @@ export async function signupCompany(_prev: unknown, formData: FormData) {
   if (existe) return { erro: "Já existe um usuário com este e-mail." };
 
   const senhaHash = await hashPassword(senha);
-  // Toda empresa nova começa com 14 dias de teste grátis.
-  const fimDoTeste = new Date(Date.now() + 14 * 86_400_000);
+  // Toda empresa nova começa com 7 dias de teste grátis.
+  const fimDoTeste = new Date(Date.now() + 7 * 86_400_000);
   const user = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
       data: {
