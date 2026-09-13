@@ -57,7 +57,7 @@ export default async function LoginPage() {
             <ul className="mt-8 space-y-4">
               {RECURSOS.map((r) => (
                 <li key={r.titulo} className="flex items-start gap-3.5">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/15">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 shadow-lg shadow-black/20">
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -65,7 +65,7 @@ export default async function LoginPage() {
                       strokeWidth="1.7"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="size-[18px] text-white"
+                      className="size-5 text-white"
                       aria-hidden="true"
                     >
                       <path d={r.path} />

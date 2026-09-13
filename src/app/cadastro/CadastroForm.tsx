@@ -14,7 +14,9 @@ export function CadastroForm() {
 
   return (
     <div className="w-full max-w-md">
-      <Logo size="lg" className="mb-8 flex justify-center lg:hidden" />
+      <div className="mb-8 flex justify-center lg:hidden">
+        <Logo size="lg" />
+      </div>
 
       <form action={formAction} className="space-y-4 rounded-xl border border-border bg-surface p-7 shadow-sm">
         <h1 className="text-xl font-semibold">Cadastre sua empresa</h1>

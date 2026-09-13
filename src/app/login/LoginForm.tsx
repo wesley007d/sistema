@@ -14,10 +14,14 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <Logo size="lg" className="mb-8 flex justify-center lg:hidden" />
+      <div className="mb-8 flex justify-center lg:hidden">
+        <Logo size="lg" />
+      </div>
 
       <div className="rounded-xl border border-border bg-surface p-7 shadow-sm">
-        <Logo size="lg" className="mb-5 hidden justify-center lg:flex" />
+        <div className="mb-5 hidden justify-center lg:flex">
+          <Logo size="lg" />
+        </div>
         <h1 className="text-xl font-semibold">Entrar</h1>
         <p className="mt-1 text-sm text-muted">Acesse o painel da sua loja.</p>
 
