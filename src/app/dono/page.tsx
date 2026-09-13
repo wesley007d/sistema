@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { ONLINE_JANELA_MS, PLATAFORMA_COMPANY_ID } from "@/lib/auth";
+import { MODULES, ONLINE_JANELA_MS, PLATAFORMA_COMPANY_ID } from "@/lib/auth";
 import { situacaoAssinatura } from "@/lib/assinatura";
 import { AutoRefresh } from "./AutoRefresh";
 
@@ -78,6 +78,7 @@ export default async function DonoPage() {
   const limiteOnline = new Date(agoraMs - ONLINE_JANELA_MS);
   const d1 = new Date(agoraMs - 1 * 86_400_000);
   const d7 = new Date(agoraMs - 7 * 86_400_000);
+  const d14 = new Date(agoraMs - 14 * 86_400_000);
   const d30 = new Date(agoraMs - 30 * 86_400_000);
 
   const [
@@ -95,6 +96,8 @@ export default async function DonoPage() {
     acoesOs7,
     acoesNota7,
     acoesEstoque7,
+    atividadeDia14,
+    atividadeModulo30,
   ] = await Promise.all([
     prisma.company.findMany({
       where: { id: { not: PLATAFORMA_COMPANY_ID } },
@@ -148,6 +151,16 @@ export default async function DonoPage() {
     prisma.stockMovement.groupBy({
       by: ["companyId"],
       where: { createdAt: { gte: d7 } },
+      _count: { _all: true },
+    }),
+    prisma.atividadeDia.findMany({
+      where: { dia: { gte: d14 } },
+      select: { dia: true, userId: true },
+    }),
+    prisma.atividadeModulo.groupBy({
+      by: ["modulo"],
+      where: { dia: { gte: d30 } },
+      _sum: { acoes: true },
       _count: { _all: true },
     }),
   ]);
@@ -205,6 +218,42 @@ export default async function DonoPage() {
     if (visto >= d7) wau++;
     if (visto >= d30) mau++;
   }
+
+  // --- histórico real de usuários ativos por dia (Fase 2, tabela AtividadeDia) ---
+  const diasHist: { rotulo: string; valor: number; chave: string }[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const dt = new Date(agoraMs - i * 86_400_000);
+    const chave = dt.toISOString().slice(0, 10);
+    diasHist.push({
+      chave,
+      rotulo: dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      valor: 0,
+    });
+  }
+  const idxDia = new Map(diasHist.map((d, i) => [d.chave, i]));
+  const usuariosPorDia = new Map<string, Set<string>>();
+  for (const a of atividadeDia14) {
+    const chave = a.dia.toISOString().slice(0, 10);
+    const set = usuariosPorDia.get(chave) ?? new Set<string>();
+    set.add(a.userId);
+    usuariosPorDia.set(chave, set);
+  }
+  for (const [chave, set] of usuariosPorDia) {
+    const i = idxDia.get(chave);
+    if (i !== undefined) diasHist[i].valor = set.size;
+  }
+  const temHistoricoAtividade = atividadeDia14.length > 0;
+
+  // --- funcionalidades mais usadas (30 dias, tabela AtividadeModulo) ---
+  const rotuloModulo = new Map(MODULES.map((m) => [m.key, m.label]));
+  const topModulos = atividadeModulo30
+    .map((m) => ({
+      modulo: m.modulo,
+      label: rotuloModulo.get(m.modulo) ?? m.modulo,
+      acoes: m._sum.acoes ?? 0,
+    }))
+    .sort((a, b) => b.acoes - a.acoes)
+    .slice(0, 10);
 
   // --- sessões online agora (exclui donos da plataforma) ---
   const sessoes = sessoesAtivas.filter(
@@ -427,6 +476,56 @@ export default async function DonoPage() {
         </div>
       </section>
 
+      {/* Atividade real (Fase 2) */}
+      <section className="mt-8 grid gap-3 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+            Usuários ativos por dia (14 dias)
+          </h2>
+          <div className="card p-5">
+            {temHistoricoAtividade ? (
+              <Barras dados={diasHist} />
+            ) : (
+              <p className="text-sm text-muted">
+                Ainda sem histórico — começa a ser registrado a partir de agora
+                (cada acesso a um módulo grava o dia). Volte em alguns dias pra
+                ver o gráfico preenchido.
+              </p>
+            )}
+          </div>
+        </div>
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+            Funcionalidades mais usadas (30 dias)
+          </h2>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="th">Módulo</th>
+                  <th className="th text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topModulos.length === 0 && (
+                  <tr>
+                    <td className="td text-muted" colSpan={2}>
+                      Ainda sem dados suficientes.
+                    </td>
+                  </tr>
+                )}
+                {topModulos.map((m) => (
+                  <tr key={m.modulo}>
+                    <td className="td">{m.label}</td>
+                    <td className="td text-right">{m.acoes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       {/* Online agora */}
       <section className="mt-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
@@ -604,10 +703,10 @@ export default async function DonoPage() {
 
       <p className="mt-6 text-xs text-muted">
         &quot;Online agora&quot; = atividade real nos últimos{" "}
-        {Math.round(ONLINE_JANELA_MS / 60000)} min. &quot;Usuários ativos&quot; é
-        aproximado (último login + sessões abertas) — para histórico dia a dia é
-        preciso registrar atividade (Fase 2). A página se atualiza sozinha a cada
-        20&nbsp;s.
+        {Math.round(ONLINE_JANELA_MS / 60000)} min. Os KPIs &quot;usuários
+        ativos hoje/semana/mês&quot; são aproximados (último login + sessões
+        abertas); o gráfico de 14 dias e as funcionalidades mais usadas já vêm
+        do histórico real. A página se atualiza sozinha a cada 20&nbsp;s.
       </p>
     </div>
   );

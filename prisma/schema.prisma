@@ -83,6 +83,8 @@ model Company {
   assinaturaPagamentos AssinaturaPagamento[]
   uploadedFiles        UploadedFile[]
   cobrancasPix         CobrancaPix[]
+  atividadesDia        AtividadeDia[]
+  atividadesModulo     AtividadeModulo[]
 }
 
 /// Histórico de pagamentos de mensalidade, lançados manualmente pela dona na Área do Dono.
@@ -654,9 +656,11 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  sessions     Session[]
-  sales        Sale[]
-  cashSessions CashRegisterSession[]
+  sessions         Session[]
+  sales            Sale[]
+  cashSessions     CashRegisterSession[]
+  atividadesDia    AtividadeDia[]
+  atividadesModulo AtividadeModulo[]
 
   @@index([companyId])
 }
@@ -701,4 +705,40 @@ model ErrorLog {
 
   @@index([createdAt])
   @@index([companyId])
+}
+
+/// Um usuário "entrou hoje" — 1 linha por usuário+dia (Área do Dono > Fase 2:
+/// DAU/WAU/MAU histórico real, hoje aproximado por ultimoLogin/Session).
+model AtividadeDia {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dia       DateTime @db.Date
+  acoes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dia])
+  @@index([companyId, dia])
+}
+
+/// Contagem de ações por módulo+dia (Área do Dono > Fase 2: "funcionalidades
+/// mais usadas"). Alimentada por `requirePermission`/`requireAnyPermission`.
+model AtividadeModulo {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dia       DateTime @db.Date
+  modulo    String
+  acoes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, dia, modulo])
+  @@index([companyId, dia])
+  @@index([companyId, modulo])
 }

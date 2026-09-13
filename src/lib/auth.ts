@@ -19,6 +19,58 @@ const ATIVIDADE_THROTTLE_MS = 60_000;
 /** Sessão é considerada "online agora" se teve atividade nos últimos X ms. */
 export const ONLINE_JANELA_MS = 5 * 60_000;
 
+/** Grava 1 "ação" de módulo no máx. 1x a cada este intervalo por usuário+módulo. */
+const ATIVIDADE_MODULO_THROTTLE_MS = 5 * 60_000;
+
+// Cache em memória do processo (sobrevive a HMR em dev, como o rate-limit).
+const atividadeModuloCache: Map<string, number> =
+  (globalThis as unknown as { __atividadeModuloCache?: Map<string, number> })
+    .__atividadeModuloCache ?? new Map();
+(
+  globalThis as unknown as { __atividadeModuloCache?: Map<string, number> }
+).__atividadeModuloCache = atividadeModuloCache;
+
+function diaAtual(agora = new Date()): Date {
+  return new Date(
+    Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()),
+  );
+}
+
+/**
+ * Registra 1 ação do usuário num módulo (Área do Dono > Fase 2: DAU/WAU/MAU
+ * histórico real + "funcionalidades mais usadas"). Throttled por usuário+módulo
+ * pra não gravar a cada request; roda em segundo plano, nunca trava a resposta.
+ */
+function registrarAtividadeModulo(user: User, moduloKey: string) {
+  if (user.companyId === PLATAFORMA_COMPANY_ID) return;
+  const chave = `${user.id}:${moduloKey}`;
+  const agora = Date.now();
+  const ultima = atividadeModuloCache.get(chave) ?? 0;
+  if (agora - ultima < ATIVIDADE_MODULO_THROTTLE_MS) return;
+  atividadeModuloCache.set(chave, agora);
+  const dia = diaAtual(new Date(agora));
+  prisma
+    .$transaction([
+      prisma.atividadeDia.upsert({
+        where: { userId_dia: { userId: user.id, dia } },
+        create: { companyId: user.companyId, userId: user.id, dia, acoes: 1 },
+        update: { acoes: { increment: 1 } },
+      }),
+      prisma.atividadeModulo.upsert({
+        where: { userId_dia_modulo: { userId: user.id, dia, modulo: moduloKey } },
+        create: {
+          companyId: user.companyId,
+          userId: user.id,
+          dia,
+          modulo: moduloKey,
+          acoes: 1,
+        },
+        update: { acoes: { increment: 1 } },
+      }),
+    ])
+    .catch(() => {});
+}
+
 /**
  * Empresa "guarda-chuva" onde vivem os usuários donos da plataforma. Não é uma
  * loja real — é filtrada da lista de empresas na Área do Dono.
@@ -247,13 +299,16 @@ export async function requireUser(): Promise<User> {
 export async function requirePermission(moduleKey: string): Promise<User> {
   const user = await requireUser();
   if (!can(user, moduleKey)) redirect("/acesso-negado");
+  registrarAtividadeModulo(user, moduleKey);
   return user;
 }
 
 /** Exige acesso a QUALQUER um dos módulos da lista. */
 export async function requireAnyPermission(moduleKeys: string[]): Promise<User> {
   const user = await requireUser();
-  if (!moduleKeys.some((k) => can(user, k))) redirect("/acesso-negado");
+  const liberado = moduleKeys.find((k) => can(user, k));
+  if (!liberado) redirect("/acesso-negado");
+  registrarAtividadeModulo(user, liberado);
   return user;
 }
 
