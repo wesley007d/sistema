@@ -11,8 +11,8 @@ export function SiteFooter({
       className={`flex flex-col items-center justify-center gap-1 border-t border-border px-6 py-4 text-center text-xs text-muted sm:px-8 ${className}`}
     >
       <span>
-        © {new Date().getFullYear()} {nomeEmpresa ?? "Auto Peças System"}. Todos
-        os direitos reservados.
+        © {nomeEmpresa ?? "Auto Peças System"}. Todos os direitos reservados.{" "}
+        {new Date().getFullYear()}
       </span>
       <span>Desenvolvido por Wesley Vinicius</span>
     </footer>
