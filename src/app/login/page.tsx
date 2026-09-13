@@ -36,8 +36,19 @@ export default async function LoginPage() {
     <>
       <main className="min-h-screen lg:grid lg:grid-cols-2">
         {/* Painel de marca — só no desktop */}
-        <aside className="relative hidden overflow-hidden bg-gradient-to-br from-primary to-[#0f306e] p-12 text-white lg:flex lg:flex-col lg:justify-center">
-          <Logo size="lg" variant="light" className="absolute left-12 top-12" />
+        <aside
+          className="relative hidden overflow-hidden bg-cover bg-center p-12 text-white lg:flex lg:flex-col lg:justify-center"
+          style={{ backgroundImage: "url(/login-hero.webp)" }}
+        >
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-br from-primary/90 to-[#0f306e]/95"
+          />
+          <Logo
+            size="lg"
+            variant="light"
+            className="absolute left-12 top-12 z-10"
+          />
 
           <div className="relative z-10 max-w-md">
             <h2 className="text-3xl font-bold leading-tight">
