@@ -53,7 +53,7 @@ export default async function LoginPage() {
           <div className="relative z-10 max-w-md">
             <h2 className="text-3xl font-bold leading-tight">
               Todo o balcão da sua auto peças{" "}
-              <span className="text-white/95">num lugar só.</span>
+              <span className="text-sky-400">num lugar só.</span>
             </h2>
             <p className="mt-3 text-white/80">
               Sistema completo para o seu negócio de autopeças, com foco em
@@ -85,7 +85,7 @@ export default async function LoginPage() {
             </ul>
 
             <p
-              className="mt-10 text-2xl text-white/90"
+              className="mt-10 text-2xl text-sky-400"
               style={{ fontFamily: "var(--font-caveat)" }}
             >
               Mais controle, mais vendas, mais resultado!

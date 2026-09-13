@@ -20,7 +20,7 @@ export function Logo({
   const s = SIZES[size];
   const mark = variant === "light" ? "text-white" : "text-primary";
   const brand = variant === "light" ? "text-white" : "text-primary";
-  const tail = variant === "light" ? "text-white/70" : "text-foreground";
+  const tail = variant === "light" ? "text-sky-400" : "text-foreground";
 
   return (
     <span className={`inline-flex items-center font-bold ${s.gap} ${className}`}>
