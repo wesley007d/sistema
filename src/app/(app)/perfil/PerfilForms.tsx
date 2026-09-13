@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { atualizarMeusDados, trocarMinhaSenha } from "./actions";
 
 type State = { ok?: string; erro?: string } | undefined;
@@ -59,13 +60,11 @@ export function DadosForm({ nome, email }: { nome: string; email: string }) {
         <label className="label" htmlFor="senhaAtual">
           Sua senha atual (para confirmar)
         </label>
-        <input
+        <PasswordInput
           id="senhaAtual"
           name="senhaAtual"
-          type="password"
           autoComplete="current-password"
           required
-          className="input"
         />
       </div>
       <Aviso state={state} />
@@ -86,41 +85,35 @@ export function SenhaForm() {
         <label className="label" htmlFor="atual">
           Senha atual
         </label>
-        <input
+        <PasswordInput
           id="atual"
           name="atual"
-          type="password"
           autoComplete="current-password"
           required
-          className="input"
         />
       </div>
       <div>
         <label className="label" htmlFor="nova">
           Nova senha
         </label>
-        <input
+        <PasswordInput
           id="nova"
           name="nova"
-          type="password"
           autoComplete="new-password"
           minLength={6}
           required
-          className="input"
         />
       </div>
       <div>
         <label className="label" htmlFor="confirmar">
           Repita a nova senha
         </label>
-        <input
+        <PasswordInput
           id="confirmar"
           name="confirmar"
-          type="password"
           autoComplete="new-password"
           minLength={6}
           required
-          className="input"
         />
       </div>
       <Aviso state={state} />

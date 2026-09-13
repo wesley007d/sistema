@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Product } from "@prisma/client";
 import { Field, SelectField } from "@/components/Field";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { BuscarFotoGoogle } from "./BuscarFotoGoogle";
 import { PrecoCalculator } from "./PrecoCalculator";
 
@@ -237,12 +238,10 @@ export function ProductForm({
               <label className="label" htmlFor="adminSenha">
                 Senha do administrador
               </label>
-              <input
+              <PasswordInput
                 id="adminSenha"
                 name="adminSenha"
-                type="password"
                 autoComplete="off"
-                className="input"
               />
             </div>
           </div>

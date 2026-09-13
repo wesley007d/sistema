@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { money } from "@/lib/format";
 import { calcPagamento } from "@/lib/pagamento";
+import { PasswordInput } from "@/components/PasswordInput";
 
 function FinalizarButton({
   habilitado,
@@ -782,8 +783,7 @@ export function PDV({
                 placeholder="E-mail do administrador (opcional)"
                 className="input py-1 text-sm"
               />
-              <input
-                type="password"
+              <PasswordInput
                 name="adminSenha"
                 autoComplete="off"
                 placeholder="Senha do administrador (opcional)"

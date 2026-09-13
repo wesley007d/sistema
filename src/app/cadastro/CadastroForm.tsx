@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { signupCompany } from "./actions";
 
 type State = { erro?: string } | undefined;
@@ -46,7 +47,7 @@ export function CadastroForm() {
         </div>
         <div>
           <label className="label">Senha</label>
-          <input name="senha" type="password" required className="input" />
+          <PasswordInput name="senha" required />
         </div>
 
         {state?.erro && (

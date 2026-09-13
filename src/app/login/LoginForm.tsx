@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { login } from "./actions";
 
 type State = { erro?: string } | undefined;
@@ -37,13 +38,11 @@ export function LoginForm() {
             <label className="label" htmlFor="senha">
               Senha
             </label>
-            <input
+            <PasswordInput
               id="senha"
               name="senha"
-              type="password"
               autoComplete="current-password"
               required
-              className="input"
             />
           </div>
 
