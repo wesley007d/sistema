@@ -42,7 +42,7 @@ export default async function LoginPage() {
         >
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-gradient-to-br from-primary/90 to-[#0f306e]/95"
+            className="absolute inset-0 bg-gradient-to-br from-primary/60 to-[#0f306e]/75"
           />
           <div className="relative z-10 max-w-md">
             <Logo size="lg" variant="light" className="mb-8" />
