@@ -3,10 +3,16 @@ import { getCurrentUser, isOwner } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { logout } from "@/app/login/actions";
 import { Logo } from "@/components/Logo";
-import { date } from "@/lib/format";
+import { SubmitButton } from "@/components/SubmitButton";
+import { CopyButton } from "@/components/CopyButton";
+import { PixAguardando } from "@/components/PixAguardando";
+import { date, money } from "@/lib/format";
 import { rotuloStatusAssinatura, situacaoAssinatura } from "@/lib/assinatura";
+import { gerarCobrancaPix } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+const VALIDADE_MS = 30 * 60_000;
 
 export default async function AssinaturaBloqueadaPage() {
   const user = await getCurrentUser();
@@ -18,6 +24,7 @@ export default async function AssinaturaBloqueadaPage() {
     select: {
       nomeFantasia: true,
       razaoSocial: true,
+      email: true,
       assinaturaStatus: true,
       assinaturaVence: true,
     },
@@ -32,6 +39,20 @@ export default async function AssinaturaBloqueadaPage() {
   const contato = process.env.SUPORTE_CONTATO?.trim();
   const ehAdmin = user.role === "ADMIN";
   const nomeEmpresa = empresa?.nomeFantasia || empresa?.razaoSocial || "sua loja";
+
+  const pixHabilitado = Boolean(process.env.MERCADOPAGO_ACCESS_TOKEN);
+  const cobrancaPendente =
+    ehAdmin && pixHabilitado
+      ? await prisma.cobrancaPix.findFirst({
+          where: { companyId: user.companyId, status: "PENDENTE" },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
+  const agoraMs = new Date().getTime();
+  const cobrancaValida =
+    cobrancaPendente && agoraMs - cobrancaPendente.createdAt.getTime() < VALIDADE_MS
+      ? cobrancaPendente
+      : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-6">
@@ -71,6 +92,47 @@ export default async function AssinaturaBloqueadaPage() {
               <span className="text-muted">Contato do fornecedor:</span>{" "}
               <span className="font-medium">{contato}</span>
             </p>
+          )}
+
+          {ehAdmin && pixHabilitado && (
+            <div className="mt-4 rounded-lg border border-border bg-surface-2 p-4">
+              {cobrancaValida ? (
+                <div>
+                  <p className="text-sm font-medium">
+                    Pague {money(cobrancaValida.valor)} via Pix
+                  </p>
+                  {cobrancaValida.qrCodeBase64 && (
+                    <img
+                      src={`data:image/png;base64,${cobrancaValida.qrCodeBase64}`}
+                      alt="QR Code Pix"
+                      className="mx-auto mt-3 h-44 w-44"
+                    />
+                  )}
+                  {cobrancaValida.qrCode && (
+                    <div className="mt-3">
+                      <input
+                        readOnly
+                        value={cobrancaValida.qrCode}
+                        onFocus={(e) => e.currentTarget.select()}
+                        className="input text-xs"
+                      />
+                      <CopyButton texto={cobrancaValida.qrCode} className="btn-ghost mt-2 w-full text-sm" />
+                    </div>
+                  )}
+                  <PixAguardando cobrancaId={cobrancaValida.id} />
+                </div>
+              ) : (
+                <form action={gerarCobrancaPix}>
+                  <p className="mb-3 text-sm">
+                    Prefere regularizar agora mesmo? Gere um Pix e o acesso volta
+                    sozinho assim que o pagamento cair.
+                  </p>
+                  <SubmitButton className="btn-primary w-full text-sm">
+                    Gerar cobrança Pix
+                  </SubmitButton>
+                </form>
+              )}
+            </div>
           )}
 
           <form action={logout} className="mt-6">

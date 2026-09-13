@@ -82,6 +82,7 @@ model Company {
   users                User[]
   assinaturaPagamentos AssinaturaPagamento[]
   uploadedFiles        UploadedFile[]
+  cobrancasPix         CobrancaPix[]
 }
 
 /// Histórico de pagamentos de mensalidade, lançados manualmente pela dona na Área do Dono.
@@ -97,6 +98,23 @@ model AssinaturaPagamento {
   obs           String?
   registradoPor String? // nome de quem lançou (a dona)
   createdAt     DateTime  @default(now())
+
+  @@index([companyId])
+}
+
+/// Cobranca Pix gerada via API de Orders do Mercado Pago (pagamento de
+/// mensalidade pelo proprio cliente, com confirmacao automatica por webhook).
+model CobrancaPix {
+  id           String    @id @default(cuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  mpOrderId    String    @unique
+  valor        Float
+  status       String    @default("PENDENTE") // PENDENTE, PAGO, EXPIRADO, CANCELADO
+  qrCode       String?   @db.Text // copia-e-cola
+  qrCodeBase64 String?   @db.Text // imagem do QR, ja em base64
+  pagoEm       DateTime?
+  createdAt    DateTime  @default(now())
 
   @@index([companyId])
 }
