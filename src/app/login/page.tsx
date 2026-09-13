@@ -44,13 +44,8 @@ export default async function LoginPage() {
             aria-hidden="true"
             className="absolute inset-0 bg-gradient-to-br from-primary/90 to-[#0f306e]/95"
           />
-          <Logo
-            size="lg"
-            variant="light"
-            className="absolute left-12 top-12 z-10"
-          />
-
           <div className="relative z-10 max-w-md">
+            <Logo size="lg" variant="light" className="mb-8" />
             <h2 className="text-3xl font-bold leading-tight">
               Todo o balcão da sua auto peças{" "}
               <span className="text-sky-400">num lugar só.</span>
