@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { AtalhosTeclado } from "@/components/AtalhosTeclado";
-import { SiteFooter } from "@/components/SiteFooter";
 import { isOwner, permissionsOf, requireDb } from "@/lib/auth";
 import { cssTemaEmpresa } from "@/lib/cor";
 import { situacaoAssinatura } from "@/lib/assinatura";
@@ -70,7 +69,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </div>
         )}
         <div className="mx-auto max-w-6xl p-6 sm:p-8">{children}</div>
-        <SiteFooter nomeEmpresa={empresa?.nomeFantasia} />
       </main>
       <AtalhosTeclado allowed={allowed} />
     </div>

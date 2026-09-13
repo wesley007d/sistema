@@ -25,7 +25,7 @@ const RECURSOS = [
   {
     titulo: "Financeiro, contas a pagar/receber e DRE",
     desc: "Sua gestão financeira na palma da mão.",
-    path: "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M12 3v18M8.5 6.5h5.5a2.5 2.5 0 0 1 0 5H10a2.5 2.5 0 0 0 0 5h6",
+    path: "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M12 3v18M15.5 6.5H10a2.5 2.5 0 0 0 0 5h4a2.5 2.5 0 0 1 0 5H8",
   },
 ];
 
