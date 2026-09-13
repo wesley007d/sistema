@@ -46,6 +46,7 @@ next-env.d.ts
 dev.log
 /dev.db
 /dev-server.log
+/prisma/migrations_sqlite_old
 
 # uploads de usuário (fotos de produto, logo da empresa) — não versionar
 /public/uploads/*
