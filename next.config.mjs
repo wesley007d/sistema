@@ -1,8 +1,10 @@
-import type { NextConfig } from "next";
-
 /**
  * Headers de segurança estáticos. A Content-Security-Policy (com nonce por
- * requisição) é montada no middleware — ver src/middleware.ts.
+ * requisição) é montada no middleware — ver src/proxy.ts.
+ *
+ * Arquivo em .mjs (não .ts): o build na Hostinger falha ao compilar um
+ * next.config.ts porque o binário nativo do SWC não roda no glibc do
+ * servidor deles — um .mjs puro não precisa desse passo de compilação.
  */
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -18,7 +20,8 @@ const securityHeaders = [
   },
 ];
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
