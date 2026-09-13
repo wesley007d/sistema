@@ -666,3 +666,21 @@ model Session {
 
   @@index([ultimaAtividade])
 }
+
+/// Erros capturados em produção (Área do Dono > Erros). Sem FK pra Company/User
+/// de propósito: o log tem que sobreviver mesmo se a empresa/usuário sumir, e
+/// pode acontecer sem sessão nenhuma (erro em /login, por exemplo).
+model ErrorLog {
+  id        String   @id @default(cuid())
+  origem    String // "SERVIDOR" | "CLIENTE"
+  mensagem  String
+  stack     String?
+  rota      String?
+  digest    String?
+  companyId String?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([companyId])
+}

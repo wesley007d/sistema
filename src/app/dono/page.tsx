@@ -359,6 +359,12 @@ export default async function DonoPage() {
           >
             Assinaturas →
           </Link>
+          <Link
+            href="/dono/erros"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Erros →
+          </Link>
           <AutoRefresh segundos={20} />
         </div>
       </div>
