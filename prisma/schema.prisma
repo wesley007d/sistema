@@ -81,6 +81,7 @@ model Company {
   cashTransactions     CashTransaction[]
   users                User[]
   assinaturaPagamentos AssinaturaPagamento[]
+  uploadedFiles        UploadedFile[]
 }
 
 /// Histórico de pagamentos de mensalidade, lançados manualmente pela dona na Área do Dono.
@@ -638,6 +639,19 @@ model User {
   sessions     Session[]
   sales        Sale[]
   cashSessions CashRegisterSession[]
+
+  @@index([companyId])
+}
+
+/// Arquivo binário (foto de produto, logo da empresa) guardado no banco —
+/// esta hospedagem não mantém disco persistente entre deploys.
+model UploadedFile {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  mime      String
+  data      Bytes
+  createdAt DateTime @default(now())
 
   @@index([companyId])
 }

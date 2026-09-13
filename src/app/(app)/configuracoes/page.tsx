@@ -22,7 +22,7 @@ async function salvarAparencia(formData: FormData) {
   if (bool(formData.get("removerLogo"))) {
     logoUrl = null;
   } else {
-    const nova = await salvarLogoUpload(formData.get("logo"));
+    const nova = await salvarLogoUpload(db, user.companyId, formData.get("logo"));
     if (nova) logoUrl = nova;
   }
 
@@ -43,7 +43,7 @@ async function salvarAparencia(formData: FormData) {
     },
   });
   if (logoUrl !== undefined && atual.logoUrl && atual.logoUrl !== logoUrl) {
-    await apagarLogo(atual.logoUrl);
+    await apagarLogo(db, atual.logoUrl);
   }
   revalidatePath("/", "layout");
   revalidatePath("/configuracoes");

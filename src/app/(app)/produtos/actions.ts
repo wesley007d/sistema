@@ -1,8 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireDbAnyPermission, requireDbPermission } from "@/lib/auth";
@@ -10,94 +7,19 @@ import type { ScopedDb } from "@/lib/tenant-db";
 import { bool, optStr, parseNumber, str } from "@/lib/format";
 import { gerarSkuProduto } from "@/lib/produto-sku";
 import { conferirAdmin } from "@/lib/aprovacao";
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "produtos");
-
-// Só imagens rasterizadas. SVG fica de fora: é XML e pode conter <script>, o que
-// vira XSS armazenado quando o arquivo é servido no mesmo domínio.
-const EXT_IMAGEM_OK = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
-const MIME_IMAGEM_OK = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-]);
-
-const EXT_POR_CONTENT_TYPE: Record<string, string> = {
-  jpeg: "jpg",
-};
-
-/** Normaliza e valida a extensão de imagem; lança erro se não for permitida. */
-function extImagemValida(bruto: string): string {
-  const ext = bruto.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const norm = ext === "jpeg" ? "jpg" : ext;
-  if (!EXT_IMAGEM_OK.has(norm))
-    throw new Error("Formato de imagem inválido (use PNG, JPG, WEBP ou GIF).");
-  return norm;
-}
-
-const HOSTS_BLOQUEADOS = [
-  /^localhost$/i,
-  /^127\./,
-  /^0\.0\.0\.0$/,
-  /^::1$/,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./,
-];
-
-/** Baixa uma imagem de uma URL externa e salva localmente; lança erro se não der certo. */
-async function baixarImagemDaUrl(url: string): Promise<string> {
-  let alvo: URL;
-  try {
-    alvo = new URL(url);
-  } catch {
-    throw new Error("URL da imagem inválida.");
-  }
-  if (alvo.protocol !== "http:" && alvo.protocol !== "https:") {
-    throw new Error("A URL da imagem precisa ser http ou https.");
-  }
-  if (HOSTS_BLOQUEADOS.some((re) => re.test(alvo.hostname))) {
-    throw new Error("Essa URL de imagem não é permitida.");
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  let res: Response;
-  try {
-    // `manual`: um redirect poderia apontar para um host interno depois da
-    // checagem de blocklist acima (SSRF). Não seguimos — pedimos a URL final.
-    res = await fetch(alvo, { signal: controller.signal, redirect: "manual" });
-  } catch {
-    throw new Error("Não foi possível baixar a imagem dessa URL.");
-  } finally {
-    clearTimeout(timeout);
-  }
-  if (res.status >= 300 && res.status < 400)
-    throw new Error("A URL da imagem redireciona; use o endereço final direto.");
-  if (!res.ok) throw new Error(`Não foi possível baixar a imagem (HTTP ${res.status}).`);
-
-  const contentType = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-  if (!MIME_IMAGEM_OK.has(contentType)) {
-    throw new Error("Essa URL não aponta para uma imagem PNG, JPG, WEBP ou GIF.");
-  }
-
-  const buffer = Buffer.from(await res.arrayBuffer());
-  if (buffer.length > 8 * 1024 * 1024) {
-    throw new Error("Imagem muito grande (máx. 8MB).");
-  }
-
-  const bruto = contentType.split("/")[1] ?? "jpg";
-  const ext = extImagemValida(EXT_POR_CONTENT_TYPE[bruto] ?? bruto);
-  const nomeArquivo = `${randomUUID()}.${ext}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(path.join(UPLOAD_DIR, nomeArquivo), buffer);
-  return `/uploads/produtos/${nomeArquivo}`;
-}
+import {
+  MIME_IMAGEM_OK,
+  apagarArquivo,
+  baixarImagemExterna,
+  salvarArquivo,
+} from "@/lib/uploaded-file";
 
 /** Salva a imagem enviada/baixada (se houver) e devolve a URL pública; null = remover. */
-async function saveImagem(formData: FormData): Promise<string | null | undefined> {
+async function saveImagem(
+  db: ScopedDb,
+  companyId: string,
+  formData: FormData,
+): Promise<string | null | undefined> {
   if (bool(formData.get("removerImagem"))) return null;
 
   const file = formData.get("imagem");
@@ -106,27 +28,17 @@ async function saveImagem(formData: FormData): Promise<string | null | undefined
       throw new Error("Imagem muito grande (máx. 8MB).");
     if (!MIME_IMAGEM_OK.has(file.type))
       throw new Error("Formato de imagem inválido (use PNG, JPG, WEBP ou GIF).");
-    const ext = extImagemValida(file.name.split(".").pop() || "jpg");
-    const nomeArquivo = `${randomUUID()}.${ext}`;
-    await mkdir(UPLOAD_DIR, { recursive: true });
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(UPLOAD_DIR, nomeArquivo), buffer);
-    return `/uploads/produtos/${nomeArquivo}`;
+    return salvarArquivo(db, companyId, file.type, buffer);
   }
 
   const urlExterna = optStr(formData.get("imagemUrlExterna"));
-  if (urlExterna) return baixarImagemDaUrl(urlExterna);
+  if (urlExterna) {
+    const { mime, data } = await baixarImagemExterna(urlExterna);
+    return salvarArquivo(db, companyId, mime, data);
+  }
 
   return undefined;
-}
-
-async function removerArquivoAntigo(imagemUrl: string | null | undefined) {
-  if (!imagemUrl || !imagemUrl.startsWith("/uploads/produtos/")) return;
-  try {
-    await unlink(path.join(process.cwd(), "public", imagemUrl));
-  } catch {
-    // arquivo já não existe; ignora
-  }
 }
 
 function readProduct(formData: FormData) {
@@ -190,7 +102,7 @@ export async function createProduct(formData: FormData) {
     if (existe) throw new Error(`Já existe um produto com o código "${data.sku}".`);
   }
   const categoryId = await resolveCategoria(db, user.companyId, optStr(formData.get("categoria")));
-  const imagemUrl = await saveImagem(formData);
+  const imagemUrl = await saveImagem(db, user.companyId, formData);
 
   const estoqueInicial = parseNumber(formData.get("estoqueInicial"));
 
@@ -247,10 +159,10 @@ export async function updateProduct(id: string, formData: FormData) {
       throw new Error(`Já existe outro produto com o código "${sku}".`);
   }
   const categoryId = await resolveCategoria(db, user.companyId, optStr(formData.get("categoria")));
-  const imagemUrl = await saveImagem(formData);
+  const imagemUrl = await saveImagem(db, user.companyId, formData);
   if (imagemUrl !== undefined) {
     const atual = await db.product.findUnique({ where: { id }, select: { imagemUrl: true } });
-    await removerArquivoAntigo(atual?.imagemUrl);
+    await apagarArquivo(db, atual?.imagemUrl);
   }
   await db.product.update({
     where: { id },
@@ -280,7 +192,7 @@ export async function deleteProduct(id: string) {
     await db.product.update({ where: { id }, data: { ativo: false } });
   } else {
     const p = await db.product.findUnique({ where: { id }, select: { imagemUrl: true } });
-    await removerArquivoAntigo(p?.imagemUrl);
+    await apagarArquivo(db, p?.imagemUrl);
     await db.product.delete({ where: { id } });
   }
   revalidatePath("/produtos");
