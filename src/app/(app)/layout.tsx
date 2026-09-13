@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { AtalhosTeclado } from "@/components/AtalhosTeclado";
+import { SiteFooter } from "@/components/SiteFooter";
 import { isOwner, permissionsOf, requireDb } from "@/lib/auth";
 import { cssTemaEmpresa } from "@/lib/cor";
 import { situacaoAssinatura } from "@/lib/assinatura";
@@ -69,13 +70,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </div>
         )}
         <div className="mx-auto max-w-6xl p-6 sm:p-8">{children}</div>
-        <footer className="flex flex-col items-center justify-between gap-1 border-t border-border px-6 py-4 text-xs text-muted sm:flex-row sm:px-8">
-          <span>
-            © {new Date().getFullYear()} {empresa?.nomeFantasia ?? "Auto Peças System"}.
-            Todos os direitos reservados.
-          </span>
-          <span>Desenvolvido por Wesley Vinicius</span>
-        </footer>
+        <SiteFooter nomeEmpresa={empresa?.nomeFantasia} />
       </main>
       <AtalhosTeclado allowed={allowed} />
     </div>

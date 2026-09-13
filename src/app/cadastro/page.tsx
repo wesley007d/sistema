@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { Logo } from "@/components/Logo";
+import { SiteFooter } from "@/components/SiteFooter";
 import { CadastroForm } from "./CadastroForm";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ export default async function CadastroPage() {
       <div className="flex min-h-screen items-center justify-center bg-background p-6 lg:min-h-0">
         <CadastroForm />
       </div>
+      <SiteFooter className="lg:col-span-2" />
     </main>
   );
 }

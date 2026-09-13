@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { Logo } from "@/components/Logo";
+import { SiteFooter } from "@/components/SiteFooter";
 import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -53,9 +54,10 @@ export default async function LoginPage() {
       </aside>
 
       {/* Formulário */}
-      <div className="flex min-h-screen items-center justify-center bg-background p-6 lg:min-h-0">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6 lg:min-h-0">
         <LoginForm />
       </div>
+      <SiteFooter className="lg:col-span-2" />
     </main>
   );
 }
