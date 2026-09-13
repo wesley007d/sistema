@@ -85,6 +85,17 @@ export default async function LoginPage() {
             >
               Mais controle, mais vendas, mais resultado!
             </p>
+            <svg
+              viewBox="0 0 180 26"
+              className="mt-1 h-5 w-44 text-sky-400"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 10c46 15 100 15 144 2c8-2.5 16-6 24-11" />
+            </svg>
           </div>
 
           {/* Formas decorativas */}
