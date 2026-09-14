@@ -85,6 +85,7 @@ model Company {
   cobrancasPix         CobrancaPix[]
   atividadesDia        AtividadeDia[]
   atividadesModulo     AtividadeModulo[]
+  avisosVencimento     AvisoVencimento[]
 }
 
 /// Histórico de pagamentos de mensalidade, lançados manualmente pela dona na Área do Dono.
@@ -101,6 +102,25 @@ model AssinaturaPagamento {
   registradoPor String? // nome de quem lançou (a dona)
   createdAt     DateTime  @default(now())
 
+  @@index([companyId])
+}
+
+/// Historico de e-mails de aviso de vencimento de mensalidade (disparados por
+/// cron externo, via /api/cron/aviso-vencimento). venceRef guarda o
+/// assinaturaVence no momento do envio: identifica o ciclo de cobranca, entao
+/// um vencimento pago e renovado libera novos avisos automaticamente.
+model AvisoVencimento {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tipo          String // lembrete_3d, vence_hoje, atraso, bloqueada
+  venceRef      DateTime
+  destinatarios String // e-mails separados por virgula
+  sucesso       Boolean  @default(true)
+  erro          String?
+  enviadoEm     DateTime @default(now())
+
+  @@unique([companyId, tipo, venceRef])
   @@index([companyId])
 }
 
