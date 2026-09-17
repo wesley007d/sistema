@@ -657,6 +657,12 @@ model CashTransaction {
   settlementId String?
   settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
+  // Cancelamento (so lancamento MANUAL): nao apaga, so marca - mantem o motivo
+  // rastreavel e sai do calculo de saldo/relatorios.
+  cancelado       Boolean   @default(false)
+  canceladoMotivo String?
+  canceladoEm     DateTime?
+  canceladoPor    String?
 
   @@index([companyId])
 }

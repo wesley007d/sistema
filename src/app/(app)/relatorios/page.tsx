@@ -37,11 +37,11 @@ export default async function RelatoriosPainelPage({
     montarDre(db, period),
     db.cashTransaction.aggregate({
       _sum: { valor: true },
-      where: { tipo: "ENTRADA", data: range },
+      where: { tipo: "ENTRADA", data: range, cancelado: false },
     }),
     db.cashTransaction.aggregate({
       _sum: { valor: true },
-      where: { tipo: "SAIDA", data: range },
+      where: { tipo: "SAIDA", data: range, cancelado: false },
     }),
     db.sale.findMany({
       where: { status: "FINALIZADA", finalizadaEm: range },

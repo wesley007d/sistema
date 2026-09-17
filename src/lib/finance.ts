@@ -21,7 +21,7 @@ export async function accountBalance(accountId: string, tx: Tx) {
   const acc = await tx.cashAccount.findUniqueOrThrow({ where: { id: accountId } });
   const agg = await tx.cashTransaction.groupBy({
     by: ["tipo"],
-    where: { accountId },
+    where: { accountId, cancelado: false },
     _sum: { valor: true },
   });
   const entrada = agg.find((a) => a.tipo === "ENTRADA")?._sum.valor ?? 0;
@@ -38,7 +38,7 @@ export async function accountBalanceUntil(
   const acc = await tx.cashAccount.findUniqueOrThrow({ where: { id: accountId } });
   const agg = await tx.cashTransaction.groupBy({
     by: ["tipo"],
-    where: { accountId, data: { lt: until } },
+    where: { accountId, data: { lt: until }, cancelado: false },
     _sum: { valor: true },
   });
   const entrada = agg.find((a) => a.tipo === "ENTRADA")?._sum.valor ?? 0;

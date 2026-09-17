@@ -64,7 +64,7 @@ export async function montarDre(db: ScopedDb, p: Period): Promise<Dre> {
         select: { quantidade: true, custoUnit: true },
       }),
       db.cashTransaction.findMany({
-        where: { tipo: "SAIDA", data: range },
+        where: { tipo: "SAIDA", data: range, cancelado: false },
         select: { valor: true, categoria: true },
       }),
     ]);

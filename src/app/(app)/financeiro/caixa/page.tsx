@@ -3,10 +3,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { FinanceNav } from "@/components/FinanceNav";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Field, SelectField } from "@/components/Field";
-import { ConfirmButton } from "@/components/ConfirmButton";
 import { money, dateTime } from "@/lib/format";
 import { accountBalanceUntil, getDefaultCashAccount } from "@/lib/finance";
-import { criarMovimentoCaixa, excluirMovimento, transferir } from "../actions";
+import { criarMovimentoCaixa, transferir } from "../actions";
+import { CancelarMovimentoForm } from "./CancelarMovimentoForm";
 
 export const dynamic = "force-dynamic";
 
@@ -50,15 +50,19 @@ export default async function CaixaPage({
   });
 
   const delta = (m: (typeof movs)[number]) =>
-    m.tipo === "ENTRADA" ? m.valor : -m.valor;
+    m.cancelado ? 0 : m.tipo === "ENTRADA" ? m.valor : -m.valor;
   const linhas = movs.map((m, i) => {
     const saldo = movs
       .slice(0, i + 1)
       .reduce((s, x) => s + delta(x), saldoInicial);
     return { m, saldo: Math.round(saldo * 100) / 100 };
   });
-  const entradas = movs.filter((m) => m.tipo === "ENTRADA").reduce((s, m) => s + m.valor, 0);
-  const saidas = movs.filter((m) => m.tipo === "SAIDA").reduce((s, m) => s + m.valor, 0);
+  const entradas = movs
+    .filter((m) => !m.cancelado && m.tipo === "ENTRADA")
+    .reduce((s, m) => s + m.valor, 0);
+  const saidas = movs
+    .filter((m) => !m.cancelado && m.tipo === "SAIDA")
+    .reduce((s, m) => s + m.valor, 0);
   const hojeInput = new Date().toISOString().slice(0, 10);
 
   return (
@@ -189,14 +193,24 @@ export default async function CaixaPage({
               </tr>
             )}
             {linhas.map(({ m, saldo }) => (
-              <tr key={m.id} className="hover:bg-background">
+              <tr
+                key={m.id}
+                className={`hover:bg-background ${m.cancelado ? "opacity-50" : ""}`}
+              >
                 <td className="td whitespace-nowrap text-muted">{dateTime(m.data)}</td>
                 <td className="td">
-                  {m.descricao}
+                  <span className={m.cancelado ? "line-through" : ""}>
+                    {m.descricao}
+                  </span>
                   {m.origem !== "MANUAL" && (
                     <span className="ml-2 text-xs text-muted">
                       {m.origem.toLowerCase().replace("_", " ")}
                     </span>
+                  )}
+                  {m.cancelado && (
+                    <p className="text-xs text-red-600">
+                      Cancelado por {m.canceladoPor}: {m.canceladoMotivo}
+                    </p>
                   )}
                 </td>
                 <td className="td text-muted">{m.categoria ?? "—"}</td>
@@ -204,22 +218,15 @@ export default async function CaixaPage({
                   {m.settlement?.formaPagamento ?? m.forma ?? "—"}
                 </td>
                 <td className="td text-right text-green-700">
-                  {m.tipo === "ENTRADA" ? money(m.valor) : ""}
+                  {!m.cancelado && m.tipo === "ENTRADA" ? money(m.valor) : ""}
                 </td>
                 <td className="td text-right text-red-600">
-                  {m.tipo === "SAIDA" ? money(m.valor) : ""}
+                  {!m.cancelado && m.tipo === "SAIDA" ? money(m.valor) : ""}
                 </td>
                 <td className="td text-right font-medium">{money(saldo)}</td>
                 <td className="td text-right">
-                  {m.origem === "MANUAL" && (
-                    <form action={excluirMovimento.bind(null, m.id)}>
-                      <ConfirmButton
-                        message="Excluir este movimento?"
-                        className="btn-danger px-2 py-0.5 text-xs"
-                      >
-                        ✕
-                      </ConfirmButton>
-                    </form>
+                  {m.origem === "MANUAL" && !m.cancelado && (
+                    <CancelarMovimentoForm id={m.id} />
                   )}
                 </td>
               </tr>

@@ -46,7 +46,7 @@ export default async function FinanceiroPainelPage() {
       }),
       db.cashTransaction.groupBy({
         by: ["tipo"],
-        where: { data: { gte: hoje } },
+        where: { data: { gte: hoje }, cancelado: false },
         _sum: { valor: true },
       }),
     ]);

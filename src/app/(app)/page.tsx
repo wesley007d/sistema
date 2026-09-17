@@ -44,7 +44,11 @@ export default async function DashboardPage() {
     db.serviceOrder.aggregate({ _sum: { total: true }, _count: true, where: { status: { in: ["CONCLUIDA", "ENTREGUE"] }, concluidaEm: { gte: inicioMes } } }),
     montarDre(db, mesPeriod),
     db.cashAccount.aggregate({ _sum: { saldoInicial: true }, where: { ativo: true } }),
-    db.cashTransaction.groupBy({ by: ["tipo"], _sum: { valor: true } }),
+    db.cashTransaction.groupBy({
+      by: ["tipo"],
+      where: { cancelado: false },
+      _sum: { valor: true },
+    }),
     db.invoice.count({ where: { status: { in: ["RASCUNHO", "REJEITADA"] } } }),
     db.serviceOrder.count({ where: { status: { in: ["ORCAMENTO", "APROVADA", "EM_EXECUCAO"] } } }),
     sumSaldo(db, "RECEBER", { status: { in: ["ABERTO", "PARCIAL"] }, vencimento: { lt: amanha } }),

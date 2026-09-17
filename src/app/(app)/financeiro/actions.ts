@@ -208,12 +208,26 @@ export async function transferir(formData: FormData) {
   revalidatePath("/financeiro");
 }
 
-export async function excluirMovimento(id: string) {
-  const { db } = await requireDbAnyPermission(FIN_OU_CAIXA);
+export async function excluirMovimento(id: string, formData: FormData) {
+  const { user, db } = await requireDbAnyPermission(FIN_OU_CAIXA);
+  const motivo = str(formData.get("motivo")).trim();
+  if (motivo.length < 5)
+    throw new Error("Informe o motivo do cancelamento (mínimo 5 caracteres).");
   const mov = await db.cashTransaction.findUniqueOrThrow({ where: { id } });
   if (mov.origem === "BAIXA_TITULO")
-    throw new Error("Estorne a baixa do título em vez de excluir o movimento.");
-  await db.cashTransaction.delete({ where: { id } });
+    throw new Error("Estorne a baixa do título em vez de cancelar o movimento.");
+  if (mov.cancelado) throw new Error("Este movimento já está cancelado.");
+  // Nao apaga: fica registrado como cancelado, com o motivo e quem cancelou,
+  // e sai do calculo de saldo/relatorios. Estamos lidando com dinheiro.
+  await db.cashTransaction.update({
+    where: { id },
+    data: {
+      cancelado: true,
+      canceladoMotivo: motivo,
+      canceladoEm: new Date(),
+      canceladoPor: `${user.nome} (${user.email})`,
+    },
+  });
   revalidatePath("/financeiro/caixa");
   revalidatePath("/financeiro");
 }

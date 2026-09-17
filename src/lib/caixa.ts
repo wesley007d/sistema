@@ -38,6 +38,7 @@ export async function resumoSessaoCaixa(
     where: {
       accountId: session.accountId,
       data: { gte: session.abertoEm, lte: ate },
+      cancelado: false,
     },
     _sum: { valor: true },
   });
