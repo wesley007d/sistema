@@ -117,6 +117,7 @@ export default async function CaixaPage({
             <Field label="Valor" name="valor" type="number" step="0.01" required />
             <Field label="Descrição" name="descricao" required className="sm:col-span-2" />
             <Field label="Categoria" name="categoria" />
+            <Field label="Forma de pagamento" name="forma" placeholder="Pix, dinheiro…" />
             <Field label="Data" name="data" type="date" defaultValue={hojeInput} />
             <div className="sm:col-span-2">
               <SubmitButton>Lançar</SubmitButton>
@@ -199,7 +200,9 @@ export default async function CaixaPage({
                   )}
                 </td>
                 <td className="td text-muted">{m.categoria ?? "—"}</td>
-                <td className="td text-muted">{m.settlement?.formaPagamento ?? "—"}</td>
+                <td className="td text-muted">
+                  {m.settlement?.formaPagamento ?? m.forma ?? "—"}
+                </td>
                 <td className="td text-right text-green-700">
                   {m.tipo === "ENTRADA" ? money(m.valor) : ""}
                 </td>

@@ -177,6 +177,7 @@ export async function criarMovimentoCaixa(formData: FormData) {
       valor: r2(valor),
       descricao,
       categoria: optStr(formData.get("categoria")),
+      forma: optStr(formData.get("forma")),
       data: dataStr ? new Date(dataStr) : new Date(),
       origem: "MANUAL",
     },

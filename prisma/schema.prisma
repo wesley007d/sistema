@@ -652,6 +652,7 @@ model CashTransaction {
   valor        Float
   categoria    String?
   descricao    String
+  forma        String? // forma de pagamento do lancamento MANUAL (Pix, dinheiro...)
   origem       String   @default("MANUAL") // BAIXA_TITULO, MANUAL, TRANSFERENCIA
   settlementId String?
   settlement   Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
