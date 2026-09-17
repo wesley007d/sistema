@@ -45,6 +45,7 @@ export default async function CaixaPage({
 
   const movs = await db.cashTransaction.findMany({
     where: { accountId: contaId, data: { gte: dtDe, lte: dtAte } },
+    include: { settlement: { select: { formaPagamento: true } } },
     orderBy: [{ data: "asc" }, { createdAt: "asc" }],
   });
 
@@ -164,6 +165,7 @@ export default async function CaixaPage({
               <th className="th">Data</th>
               <th className="th">Descrição</th>
               <th className="th">Categoria</th>
+              <th className="th">Forma</th>
               <th className="th text-right">Entrada</th>
               <th className="th text-right">Saída</th>
               <th className="th text-right">Saldo</th>
@@ -172,7 +174,7 @@ export default async function CaixaPage({
           </thead>
           <tbody>
             <tr className="bg-background">
-              <td className="td text-muted" colSpan={5}>
+              <td className="td text-muted" colSpan={6}>
                 Saldo inicial em {de} — {conta.nome}
               </td>
               <td className="td text-right font-medium">{money(saldoInicial)}</td>
@@ -180,7 +182,7 @@ export default async function CaixaPage({
             </tr>
             {linhas.length === 0 && (
               <tr>
-                <td className="td text-muted" colSpan={7}>
+                <td className="td text-muted" colSpan={8}>
                   Nenhum movimento no período.
                 </td>
               </tr>
@@ -197,6 +199,7 @@ export default async function CaixaPage({
                   )}
                 </td>
                 <td className="td text-muted">{m.categoria ?? "—"}</td>
+                <td className="td text-muted">{m.settlement?.formaPagamento ?? "—"}</td>
                 <td className="td text-right text-green-700">
                   {m.tipo === "ENTRADA" ? money(m.valor) : ""}
                 </td>

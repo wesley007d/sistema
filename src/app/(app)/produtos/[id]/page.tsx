@@ -67,6 +67,37 @@ export default async function EditarProdutoPage({
         </div>
 
         <div className="space-y-6">
+          <section className="card p-5">
+            <h2 className="mb-1 font-semibold">Etiqueta com código de barras</h2>
+            <p className="mb-3 text-xs text-muted">
+              Gera etiquetas pra imprimir e colar na peça/prateleira (usa o
+              código de barras se tiver, senão o SKU).
+            </p>
+            <form
+              action="/produtos/etiquetas"
+              method="get"
+              target="_blank"
+              className="flex items-end gap-2"
+            >
+              <input type="hidden" name="ids" value={product.id} />
+              <input type="hidden" name="print" value="1" />
+              <div>
+                <label className="label">Quantidade</label>
+                <input
+                  name="qtd"
+                  type="number"
+                  min={1}
+                  max={100}
+                  defaultValue={1}
+                  className="input w-24"
+                />
+              </div>
+              <button type="submit" className="btn-ghost">
+                🏷️ Gerar etiquetas
+              </button>
+            </form>
+          </section>
+
           {!ehAdmin && (
             <section className="card p-5">
               <h2 className="mb-1 font-semibold">Localização (prateleira)</h2>

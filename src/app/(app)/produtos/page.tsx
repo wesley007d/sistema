@@ -117,12 +117,19 @@ export default async function ProdutosPage({
                   >
                     {num(p.estoque)} {p.unidade}
                   </td>
-                  <td className="td text-right">
+                  <td className="td text-right whitespace-nowrap">
                     <Link
                       href={`/produtos/${p.id}`}
                       className="text-xs text-primary"
                     >
                       editar
+                    </Link>
+                    <Link
+                      href={`/produtos/etiquetas?ids=${p.id}`}
+                      target="_blank"
+                      className="ml-3 text-xs text-primary"
+                    >
+                      🏷️ etiqueta
                     </Link>
                   </td>
                 </tr>
