@@ -24,9 +24,13 @@ export function proxy(req: NextRequest) {
   if (!dev && req.headers.get("x-forwarded-proto") === "http") {
     // req.nextUrl.host reflete o bind interno do processo (ex. 0.0.0.0:3000),
     // nao o dominio publico - tem que vir do host que o cliente/proxy mandou.
-    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    // A Hostinger manda o Host com a porta interna do app (ex. :3000) mesmo
+    // sendo https publico (443 implicito), entao a porta e descartada.
+    const rawHost = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    const host = rawHost?.replace(/:\d+$/, "");
     const url = req.nextUrl.clone();
     url.protocol = "https:";
+    url.port = "";
     if (host) url.host = host;
     return NextResponse.redirect(url, 308);
   }
