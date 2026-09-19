@@ -17,15 +17,14 @@ export function proxy(req: NextRequest) {
 
   // A Hostinger nao redireciona http->https no servidor (a opcao "Forcar
   // HTTPS" do painel fazia isso, mas sobrescrevendo a CSP com uma versao
-  // fraca - por isso ficou desligada). Sem isso, quem acessa por http fica
-  // sem criptografia; entao o redirect passa a ser feito aqui.
-  const proto = req.headers.get("x-forwarded-proto");
-  // DIAGNOSTICO TEMPORARIO (remover depois de confirmar em producao): só
-  // registra o que a Hostinger manda, ainda NÃO redireciona - checar antes
-  // de ativar o redirect de verdade, pra não arriscar loop se o proxy deles
-  // nao mandar x-forwarded-proto correto.
-  if (!dev) {
-    console.log(`[diag-proto] ${req.method} ${req.nextUrl.pathname} proto=${proto}`);
+  // fraca - por isso fica desligada). Sem isso, quem acessa por http fica
+  // sem criptografia; entao o redirect e feito aqui. Confirmado em producao
+  // (log de execucao da Hostinger, 2026-09-19) que x-forwarded-proto chega
+  // correto, entao e seguro redirecionar sem risco de loop.
+  if (!dev && req.headers.get("x-forwarded-proto") === "http") {
+    const url = req.nextUrl.clone();
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 308);
   }
 
   const nonce = btoa(crypto.randomUUID());
