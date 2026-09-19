@@ -8,6 +8,7 @@ import { money, dateTime } from "@/lib/format";
 import { OSStatusBadge, OS_FLUXO } from "../OSStatusBadge";
 import { StatusBadge } from "../../notas/StatusBadge";
 import { OSEditor } from "./OSEditor";
+import { CancelarOSForm } from "./CancelarOSForm";
 import {
   deleteServiceOrder,
   faturarOS,
@@ -49,6 +50,9 @@ export default async function OSDetalhePage({
     : [];
 
   const proximas = OS_FLUXO[os.status] ?? [];
+  const podeCancelar = os.status !== "ENTREGUE" && os.status !== "CANCELADA";
+  const ultimaObs =
+    (os.observacao ?? "").split("\n").filter(Boolean).pop() ?? null;
   const temServicos = os.items.some((i) => i.tipo === "SERVICO");
   const temPecas = os.items.some((i) => i.tipo === "PECA");
   const jaFaturouNfse = os.invoices.some(
@@ -94,13 +98,6 @@ export default async function OSDetalhePage({
                 </SubmitButton>
               </form>
             ))}
-            {os.status !== "ENTREGUE" && os.status !== "CANCELADA" && (
-              <form action={setOSStatus.bind(null, id, "CANCELADA")}>
-                <ConfirmButton message="Cancelar esta OS? Peças baixadas voltam ao estoque.">
-                  Cancelar OS
-                </ConfirmButton>
-              </form>
-            )}
           </div>
         }
       />
@@ -119,6 +116,20 @@ export default async function OSDetalhePage({
           </span>
         )}
       </div>
+
+      {os.status === "CANCELADA" && (
+        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <b>OS cancelada.</b>
+          {ultimaObs ? ` ${ultimaObs}` : ""} O registro fica salvo para
+          conferência.
+        </div>
+      )}
+
+      {podeCancelar && (
+        <section className="card mb-6 p-4">
+          <CancelarOSForm id={id} />
+        </section>
+      )}
 
       {os.status === "ORCAMENTO" && (
         <section className="card mb-6 p-4">

@@ -223,11 +223,21 @@ export async function setOSCliente(id: string, formData: FormData) {
   revalidatePath(`/ordens-servico/${id}`);
 }
 
-export async function setOSStatus(id: string, novo: string) {
+export async function setOSStatus(id: string, novo: string, formData?: FormData) {
   const { user, db } = await requireDbPermission("ordens_servico");
   const os = await db.serviceOrder.findUniqueOrThrow({ where: { id } });
   if (!(FLUXO[os.status] ?? []).includes(novo))
     throw new Error(`Transição inválida: ${os.status} → ${novo}.`);
+
+  // Cancelar exige motivo mesmo para admin - estamos lidando com dinheiro
+  // (peças baixadas voltam ao estoque, pode haver mão de obra já realizada).
+  let carimbo: string | undefined;
+  if (novo === "CANCELADA") {
+    const motivo = str(formData?.get("motivo")).trim();
+    if (motivo.length < 5)
+      throw new Error("Informe o motivo do cancelamento (mín. 5 caracteres).");
+    carimbo = `Cancelada por ${user.nome}: ${motivo}`;
+  }
 
   await db.$transaction(async (tx) => {
     if (novo === "CONCLUIDA") {
@@ -238,7 +248,13 @@ export async function setOSStatus(id: string, novo: string) {
       });
     } else if (novo === "CANCELADA") {
       await estornarPecasOS(tx, user.companyId, id);
-      await tx.serviceOrder.update({ where: { id }, data: { status: novo } });
+      await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          status: novo,
+          observacao: os.observacao ? `${os.observacao}\n${carimbo}` : carimbo,
+        },
+      });
     } else {
       await tx.serviceOrder.update({ where: { id }, data: { status: novo } });
     }
