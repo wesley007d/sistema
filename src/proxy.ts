@@ -22,8 +22,12 @@ export function proxy(req: NextRequest) {
   // (log de execucao da Hostinger, 2026-09-19) que x-forwarded-proto chega
   // correto, entao e seguro redirecionar sem risco de loop.
   if (!dev && req.headers.get("x-forwarded-proto") === "http") {
+    // req.nextUrl.host reflete o bind interno do processo (ex. 0.0.0.0:3000),
+    // nao o dominio publico - tem que vir do host que o cliente/proxy mandou.
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
     const url = req.nextUrl.clone();
     url.protocol = "https:";
+    if (host) url.host = host;
     return NextResponse.redirect(url, 308);
   }
 
