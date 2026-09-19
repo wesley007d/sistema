@@ -14,6 +14,20 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 export function proxy(req: NextRequest) {
   const dev = process.env.NODE_ENV !== "production";
+
+  // A Hostinger nao redireciona http->https no servidor (a opcao "Forcar
+  // HTTPS" do painel fazia isso, mas sobrescrevendo a CSP com uma versao
+  // fraca - por isso ficou desligada). Sem isso, quem acessa por http fica
+  // sem criptografia; entao o redirect passa a ser feito aqui.
+  const proto = req.headers.get("x-forwarded-proto");
+  // DIAGNOSTICO TEMPORARIO (remover depois de confirmar em producao): só
+  // registra o que a Hostinger manda, ainda NÃO redireciona - checar antes
+  // de ativar o redirect de verdade, pra não arriscar loop se o proxy deles
+  // nao mandar x-forwarded-proto correto.
+  if (!dev) {
+    console.log(`[diag-proto] ${req.method} ${req.nextUrl.pathname} proto=${proto}`);
+  }
+
   const nonce = btoa(crypto.randomUUID());
 
   const csp = [
@@ -45,8 +59,10 @@ export function proxy(req: NextRequest) {
 export const config = {
   matcher: [
     {
-      // Tudo, menos API e assets estáticos; ignora prefetches do next/link.
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      // Tudo, inclusive /api e favicon (precisam do redirect http->https
+      // tambem); so os estaticos internos do Next ficam de fora. Ignora
+      // prefetches do next/link.
+      source: "/((?!_next/static|_next/image).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
