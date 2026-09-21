@@ -6,6 +6,7 @@ import { str } from "@/lib/format";
 import { clientIp, esperaLegivel, hit } from "@/lib/rate-limit";
 import { ALL_MODULE_KEYS, createSession, hashPassword } from "@/lib/auth";
 import { MENSALIDADE_PADRAO } from "@/lib/assinatura";
+import { enviarEmail } from "@/lib/email";
 
 export async function signupCompany(_prev: unknown, formData: FormData) {
   const razaoSocial = str(formData.get("razaoSocial"));
@@ -57,5 +58,24 @@ export async function signupCompany(_prev: unknown, formData: FormData) {
   });
 
   await createSession(user.id);
+
+  // Alerta de novo cadastro nunca deve travar o cadastro em si.
+  const alertaEmail = process.env.ALERTA_CADASTRO_EMAIL;
+  if (alertaEmail) {
+    try {
+      await enviarEmail({
+        to: alertaEmail,
+        subject: "Novo cadastro no Auto Peças System",
+        html: `<div style="font-family:sans-serif;line-height:1.6;color:#111">
+          <p>Uma empresa nova acabou de se cadastrar:</p>
+          <p><b>Empresa:</b> ${nomeFantasia || razaoSocial}<br/>
+          <b>Responsável:</b> ${nome} (${email})</p>
+        </div>`,
+      });
+    } catch (e) {
+      console.error("Falha ao enviar alerta de novo cadastro por e-mail:", e);
+    }
+  }
+
   redirect("/configuracoes");
 }
