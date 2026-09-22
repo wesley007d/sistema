@@ -45,6 +45,12 @@ export function CadastroForm() {
           social é confirmada automaticamente pelo CNPJ na Receita Federal.
         </p>
 
+        <p className="rounded-md bg-primary-soft px-3 py-2 text-sm text-foreground">
+          <strong>Teste grátis por 7 dias.</strong> Depois desse período, se a
+          implantação foi feita, a mensalidade é de{" "}
+          <strong>R$ 170,00/mês</strong>.
+        </p>
+
         <div>
           <label className="label">CNPJ</label>
           <div className="flex gap-2">

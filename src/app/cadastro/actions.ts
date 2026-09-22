@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { str } from "@/lib/format";
 import { clientIp, esperaLegivel, hit } from "@/lib/rate-limit";
 import { ALL_MODULE_KEYS, createSession, hashPassword } from "@/lib/auth";
-import { MENSALIDADE_PADRAO } from "@/lib/assinatura";
+import { DIAS_TESTE_GRATIS, MENSALIDADE_PADRAO } from "@/lib/assinatura";
 import { enviarEmail } from "@/lib/email";
 import { formatarCnpj, validarCnpj } from "@/lib/cnpj";
 import { consultarCnpjReceita } from "@/lib/cnpj-consulta";
@@ -54,8 +54,8 @@ export async function signupCompany(_prev: unknown, formData: FormData) {
   }
 
   const senhaHash = await hashPassword(senha);
-  // Toda empresa nova começa com 7 dias de teste grátis.
-  const fimDoTeste = new Date(Date.now() + 7 * 86_400_000);
+  // Toda empresa nova começa com dias de teste grátis.
+  const fimDoTeste = new Date(Date.now() + DIAS_TESTE_GRATIS * 86_400_000);
   const user = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
       data: {

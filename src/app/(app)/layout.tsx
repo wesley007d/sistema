@@ -37,6 +37,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!owner && assinatura.bloqueada) redirect("/assinatura");
   const avisoAtraso =
     !owner && assinatura.emAtraso && user.role === "ADMIN";
+  const avisoTeste =
+    !owner &&
+    !avisoAtraso &&
+    assinatura.status === "TESTE" &&
+    !assinatura.bloqueada &&
+    user.role === "ADMIN";
 
   const temaCss = cssTemaEmpresa({
     cor: empresa?.corPrimaria,
@@ -66,6 +72,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Link href="/assinatura" className="font-medium underline">
               ver detalhes
             </Link>
+          </div>
+        )}
+        {avisoTeste && (
+          <div className="border-b border-border bg-primary-soft px-4 py-2 text-center text-sm text-foreground">
+            Você está no teste grátis
+            {assinatura.diasRestantes !== null
+              ? ` — faltam ${assinatura.diasRestantes} dia(s)`
+              : ""}
+            . Depois disso, se a implantação foi feita, a mensalidade é de{" "}
+            <strong>R$ 170,00/mês</strong>.
           </div>
         )}
         <div className="mx-auto max-w-6xl p-6 sm:p-8">{children}</div>

@@ -11,10 +11,14 @@ export const TOLERANCIA_DIAS = 5;
 
 /**
  * Mensalidade padrão (R$) — usada em toda empresa nova e como sugestão na
- * Área do Dono. O valor real de cada empresa fica em `Company.assinaturaValor`
- * e pode ser ajustado individualmente.
+ * Área do Dono. Cobrada quando a implantação foi feita para o cliente; o
+ * valor real de cada empresa fica em `Company.assinaturaValor` e pode ser
+ * ajustado individualmente (ex.: sem implantação).
  */
-export const MENSALIDADE_PADRAO = 150;
+export const MENSALIDADE_PADRAO = 170;
+
+/** Dias de teste grátis para toda empresa nova. */
+export const DIAS_TESTE_GRATIS = 7;
 
 const MS_DIA = 86_400_000;
 
