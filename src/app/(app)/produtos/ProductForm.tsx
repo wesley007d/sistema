@@ -4,6 +4,7 @@ import { Field, SelectField } from "@/components/Field";
 import { SubmitButton } from "@/components/SubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import { BuscarFotoGoogle } from "./BuscarFotoGoogle";
+import { EtiquetaPrevia } from "./EtiquetaPrevia";
 import { PrecoCalculator } from "./PrecoCalculator";
 
 export function ProductForm({
@@ -34,6 +35,14 @@ export function ProductForm({
         disabled={somenteLeitura}
         className="m-0 space-y-6 border-0 p-0 disabled:opacity-70"
       >
+      <EtiquetaPrevia
+        inicial={{
+          nome: product?.nome ?? "",
+          sku: product?.sku ?? "",
+          codigoBarras: product?.codigoBarras ?? "",
+          precoVenda: product?.precoVenda ?? 0,
+        }}
+      />
       <section className="card p-5">
         <h2 className="mb-4 font-semibold">Dados gerais</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
