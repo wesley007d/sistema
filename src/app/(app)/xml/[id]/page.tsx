@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { money, date, num } from "@/lib/format";
+import { FORMAS_TPAG, parseNfeXml, sugestaoPagamento } from "@/lib/xml/parse-nfe";
 import { deleteXml, lancarEstoque, vincularItem } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -16,17 +17,27 @@ export default async function XmlDetalhePage({
 }) {
   const { db } = await requireDb();
   const { id } = await params;
-  const [doc, produtos] = await Promise.all([
+  const [doc, produtos, contas] = await Promise.all([
     db.xmlDocument.findUnique({
       where: { id },
       include: { items: { include: { product: true } } },
     }),
     db.product.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
+    db.cashAccount.findMany({ where: { ativo: true }, orderBy: { createdAt: "asc" } }),
   ]);
   if (!doc) notFound();
 
   const vinculados = doc.items.filter((i) => i.vinculado).length;
   const podeEntrada = doc.direcao === "ENTRADA" && doc.status !== "LANCADO";
+
+  // como a nota diz que a compra foi paga (parcelas / forma de pagamento)
+  const parsed = podeEntrada && doc.conteudo ? parseNfeXml(doc.conteudo) : null;
+  const duplicatas = parsed?.duplicatas ?? [];
+  const formasNota = (parsed?.formasPagamento ?? [])
+    .map((f) => FORMAS_TPAG[f] ?? `código ${f}`)
+    .join(", ");
+  const sugestao = parsed ? sugestaoPagamento(parsed) : "PRAZO";
+  const hoje = new Date().toLocaleDateString("en-CA"); // yyyy-mm-dd
 
   return (
     <div>
@@ -43,9 +54,9 @@ export default async function XmlDetalhePage({
               Baixar XML
             </a>
             {podeEntrada && (
-              <form action={lancarEstoque.bind(null, id)}>
-                <SubmitButton>Lançar em estoque</SubmitButton>
-              </form>
+              <a href="#lancar" className="btn-primary">
+                Lançar em estoque
+              </a>
             )}
           </div>
         }
@@ -67,6 +78,76 @@ export default async function XmlDetalhePage({
         <Info label="Arquivo" value={doc.origemArquivo ?? "gerado pelo sistema"} />
         <Info label="Itens vinculados" value={`${vinculados} / ${doc.items.length}`} />
       </div>
+
+      {podeEntrada && (
+        <section id="lancar" className="card mb-6 p-4">
+          <h2 className="font-semibold">Lançar em estoque e no financeiro</h2>
+          <p className="mt-1 text-xs text-muted">
+            {formasNota ? `A nota informa pagamento: ${formasNota}. ` : "A nota não informa a forma de pagamento. "}
+            {duplicatas.length > 0
+              ? `Tem ${duplicatas.length} parcela(s) de cobrança.`
+              : "Não tem parcelas de cobrança."}
+          </p>
+          <form action={lancarEstoque.bind(null, id)} className="mt-4 space-y-4">
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="pagamento"
+                value="PAGO"
+                defaultChecked={sugestao === "PAGO"}
+                className="mt-1"
+              />
+              <span className="flex-1">
+                <span className="font-medium">Já paguei (à vista)</span>
+                <span className="block text-xs text-muted">
+                  Lança como pago e registra a saída de {money(doc.valorTotal)} na conta:
+                </span>
+                <select name="accountId" className="input mt-1 max-w-xs" defaultValue={contas[0]?.id ?? ""}>
+                  {contas.length === 0 && <option value="">Caixa (será criado)</option>}
+                  {contas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="pagamento"
+                value="PRAZO"
+                defaultChecked={sugestao === "PRAZO"}
+                className="mt-1"
+              />
+              <span className="flex-1">
+                <span className="font-medium">Vou pagar depois (a prazo)</span>
+                {duplicatas.length > 0 ? (
+                  <span className="block text-xs text-muted">
+                    Cria uma conta a pagar por parcela da nota:{" "}
+                    {duplicatas
+                      .map((d) => `${money(d.valor)} em ${date(d.vencimento)}`)
+                      .join(" · ")}
+                  </span>
+                ) : (
+                  <>
+                    <span className="block text-xs text-muted">
+                      Cria uma conta a pagar de {money(doc.valorTotal)} com vencimento em:
+                    </span>
+                    <input
+                      type="date"
+                      name="vencimento"
+                      defaultValue={hoje}
+                      className="input mt-1 max-w-xs"
+                    />
+                  </>
+                )}
+              </span>
+            </label>
+            <SubmitButton>Lançar em estoque</SubmitButton>
+          </form>
+        </section>
+      )}
 
       <section className="card overflow-x-auto">
         <header className="border-b border-border px-4 py-3">

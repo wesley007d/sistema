@@ -11,6 +11,12 @@ export interface ParsedXmlItem {
   valorTotal: number;
 }
 
+export interface ParsedDuplicata {
+  numero: string | null;
+  vencimento: Date | null;
+  valor: number;
+}
+
 export interface ParsedXml {
   tipo: "NFE" | "NFSE" | "NFCE" | "DESCONHECIDO";
   chaveAcesso: string | null;
@@ -23,6 +29,41 @@ export interface ParsedXml {
   dataEmissao: Date | null;
   valorTotal: number;
   items: ParsedXmlItem[];
+  /** Parcelas da cobrança (<cobr><dup>) — só NF-e. */
+  duplicatas: ParsedDuplicata[];
+  /** Códigos tPag do grupo <pag> (01 dinheiro, 15 boleto, 17 PIX…) — só NF-e. */
+  formasPagamento: string[];
+}
+
+/** Rótulos dos códigos tPag da NF-e. */
+export const FORMAS_TPAG: Record<string, string> = {
+  "01": "Dinheiro",
+  "02": "Cheque",
+  "03": "Cartão de crédito",
+  "04": "Cartão de débito",
+  "05": "Crédito loja",
+  "15": "Boleto",
+  "16": "Depósito",
+  "17": "PIX",
+  "18": "Transferência",
+  "20": "PIX",
+  "90": "Sem pagamento",
+  "99": "Outros",
+};
+
+// formas que significam que o fornecedor já recebeu no ato da compra
+const TPAG_A_VISTA = new Set(["01", "02", "03", "04", "16", "17", "18", "20"]);
+
+/**
+ * Sugere como lançar a compra no financeiro a partir do que a nota informa:
+ * parcelas na cobrança ou boleto → a pagar; dinheiro/PIX/cartão sem parcelas →
+ * já paga; nada informado → a pagar (comportamento antigo, mais seguro).
+ */
+export function sugestaoPagamento(p: Pick<ParsedXml, "duplicatas" | "formasPagamento">): "PAGO" | "PRAZO" {
+  if (p.duplicatas.length > 0) return "PRAZO";
+  if (p.formasPagamento.some((f) => f === "05" || f === "15")) return "PRAZO";
+  if (p.formasPagamento.some((f) => TPAG_A_VISTA.has(f))) return "PAGO";
+  return "PRAZO";
 }
 
 const parser = new XMLParser({
@@ -80,6 +121,21 @@ export function parseNfeXml(xml: string): ParsedXml {
       };
     });
 
+    const duplicatas: ParsedDuplicata[] = asArray(infNFe.cobr?.dup)
+      .map((d: Record<string, unknown>) => ({
+        numero: s(d.nDup),
+        vencimento: parseDate(d.dVenc ? `${String(d.dVenc)}T12:00:00` : null),
+        valor: n(d.vDup),
+      }))
+      .filter((d) => d.valor > 0);
+    // NF-e 4.0: <pag><detPag><tPag>; versões antigas: <pag><tPag>
+    const formasPagamento = asArray(infNFe.pag)
+      .flatMap((pg: Record<string, unknown>) =>
+        pg.detPag ? asArray(pg.detPag as Record<string, unknown>[]) : [pg],
+      )
+      .map((dp: Record<string, unknown>) => s(dp.tPag))
+      .filter((t): t is string => t !== null);
+
     return {
       tipo: String(ide.mod ?? "55") === "65" ? "NFCE" : "NFE",
       chaveAcesso: chave ?? null,
@@ -92,6 +148,8 @@ export function parseNfeXml(xml: string): ParsedXml {
       dataEmissao: parseDate(ide.dhEmi ?? ide.dEmi),
       valorTotal: n(total.vNF),
       items,
+      duplicatas,
+      formasPagamento,
     };
   }
 
@@ -131,6 +189,8 @@ export function parseNfeXml(xml: string): ParsedXml {
         valorUnit: n(sv.ValorUnitario) || n(sv.ValorServico),
         valorTotal: n(sv.ValorServico),
       })),
+      duplicatas: [],
+      formasPagamento: [],
     };
   }
 
@@ -146,6 +206,8 @@ export function parseNfeXml(xml: string): ParsedXml {
     dataEmissao: null,
     valorTotal: 0,
     items: [],
+    duplicatas: [],
+    formasPagamento: [],
   };
 }
 

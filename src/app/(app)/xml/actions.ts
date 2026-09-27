@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { requireDbPermission } from "@/lib/auth";
 import type { ScopedDb } from "@/lib/tenant-db";
 import { str } from "@/lib/format";
-import { parseNfeXml } from "@/lib/xml/parse-nfe";
+import { FORMAS_TPAG, parseNfeXml } from "@/lib/xml/parse-nfe";
+import { getDefaultCashAccount } from "@/lib/finance";
 import { gerarSkuProduto } from "@/lib/produto-sku";
 
 /** Importa um ou mais arquivos XML (NF-e / NFS-e) de entrada */
@@ -146,7 +147,13 @@ export async function vincularItem(itemId: string, formData: FormData) {
 }
 
 /** Lança as quantidades do XML como entrada de estoque nos produtos vinculados */
-export async function lancarEstoque(docId: string) {
+/**
+ * Lança os itens vinculados no estoque e gera o financeiro da compra:
+ * - PAGO: título já quitado, com a saída registrada na conta escolhida;
+ * - PRAZO: um título a pagar por parcela da nota (ou um só, no vencimento
+ *   informado, quando a nota não traz parcelas).
+ */
+export async function lancarEstoque(docId: string, formData: FormData) {
   const { user, db } = await requireDbPermission("xml");
   const doc = await db.xmlDocument.findUniqueOrThrow({
     where: { id: docId },
@@ -158,6 +165,20 @@ export async function lancarEstoque(docId: string) {
   const vinculados = doc.items.filter((i) => i.productId && i.vinculado);
   if (vinculados.length === 0)
     throw new Error("Nenhum item vinculado a produto. Vincule os itens primeiro.");
+
+  const pagamento = str(formData.get("pagamento")) === "PAGO" ? "PAGO" : "PRAZO";
+  const accountId = str(formData.get("accountId"));
+  const vencStr = str(formData.get("vencimento"));
+  const vencimento = /^d{4}-d{2}-d{2}$/.test(vencStr)
+    ? new Date(`${vencStr}T12:00:00`)
+    : new Date();
+  const parsed = doc.conteudo ? parseNfeXml(doc.conteudo) : null;
+  const duplicatas = parsed?.duplicatas ?? [];
+  const forma =
+    parsed?.formasPagamento
+      .map((f) => FORMAS_TPAG[f])
+      .filter((f) => f && f !== "Sem pagamento")
+      .join(", ") || null;
 
   await db.$transaction(async (tx) => {
     for (const it of vinculados) {
@@ -189,18 +210,79 @@ export async function lancarEstoque(docId: string) {
       data: { status: "LANCADO" },
     });
 
-    // conta a pagar para o fornecedor
-    await tx.financialEntry.create({
-      data: {
-        companyId: user.companyId,
-        tipo: "PAGAR",
-        status: "ABERTO",
-        descricao: `Compra XML ${doc.numero ?? ""} - ${doc.emitenteNome ?? "fornecedor"}`,
-        categoria: "Compras",
-        valor: doc.valorTotal,
-        vencimento: new Date(),
-      },
-    });
+    const descricao = `Compra XML ${doc.numero ?? ""} - ${doc.emitenteNome ?? "fornecedor"}`;
+
+    if (pagamento === "PAGO") {
+      const conta = accountId
+        ? await tx.cashAccount.findFirstOrThrow({ where: { id: accountId, ativo: true } })
+        : await getDefaultCashAccount(user.companyId, tx);
+      const agora = new Date();
+      const entry = await tx.financialEntry.create({
+        data: {
+          companyId: user.companyId,
+          tipo: "PAGAR",
+          status: "PAGO",
+          descricao,
+          categoria: "Compras",
+          valor: doc.valorTotal,
+          valorPago: doc.valorTotal,
+          vencimento: agora,
+          pagoEm: agora,
+          formaPagamento: forma,
+        },
+      });
+      const settlement = await tx.settlement.create({
+        data: {
+          companyId: user.companyId,
+          entryId: entry.id,
+          accountId: conta.id,
+          valor: doc.valorTotal,
+          data: agora,
+          formaPagamento: forma,
+        },
+      });
+      await tx.cashTransaction.create({
+        data: {
+          companyId: user.companyId,
+          accountId: conta.id,
+          data: agora,
+          tipo: "SAIDA",
+          valor: doc.valorTotal,
+          categoria: "Compras",
+          descricao: `Baixa: ${descricao}`,
+          origem: "BAIXA_TITULO",
+          settlementId: settlement.id,
+        },
+      });
+    } else if (duplicatas.length > 0) {
+      for (const [i, d] of duplicatas.entries()) {
+        await tx.financialEntry.create({
+          data: {
+            companyId: user.companyId,
+            tipo: "PAGAR",
+            status: "ABERTO",
+            descricao: `${descricao} (parcela ${i + 1}/${duplicatas.length})`,
+            categoria: "Compras",
+            valor: d.valor,
+            vencimento: d.vencimento ?? vencimento,
+            formaPagamento: forma,
+          },
+        });
+      }
+    } else {
+      await tx.financialEntry.create({
+        data: {
+          companyId: user.companyId,
+          tipo: "PAGAR",
+          status: "ABERTO",
+          descricao,
+          categoria: "Compras",
+          valor: doc.valorTotal,
+          vencimento,
+          formaPagamento: forma,
+        },
+      });
+    }
   });
 
   revalidatePath(`/xml/${docId}`);
