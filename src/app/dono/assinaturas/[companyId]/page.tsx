@@ -6,6 +6,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { rotuloStatusAssinatura, situacaoAssinatura } from "@/lib/assinatura";
 import { excluirPagamento } from "../../actions";
 import { SenhaProvisoriaButton } from "./SenhaProvisoriaButton";
+import { ZerarDadosForm } from "./ZerarDadosForm";
 
 export const dynamic = "force-dynamic";
 
@@ -215,6 +216,22 @@ export default async function HistoricoAssinaturaPage({
           </table>
         )}
       </div>
+
+      <section className="mt-10 rounded-lg border border-red-200 p-4">
+        <h2 className="font-semibold text-red-700">Zerar dados da empresa</h2>
+        <p className="mb-3 mt-1 text-xs text-muted">
+          Para quem usou o sistema testando e quer começar do zero. Apaga
+          produtos, estoque, vendas, orçamentos, OS, XMLs, financeiro e caixa (a
+          numeração de vendas, OS e produtos volta a 1). Mantém a empresa,
+          usuários, configurações, contas de caixa e a assinatura. Notas fiscais
+          emitidas em produção ficam guardadas. Recuperação só pelo backup do
+          banco.
+        </p>
+        <ZerarDadosForm
+          companyId={companyId}
+          nome={(empresa.nomeFantasia || empresa.razaoSocial).trim()}
+        />
+      </section>
 
       <p className="mt-4 text-xs text-muted">
         Cada “Registrar pagamento” marca a empresa como Ativa e empurra o

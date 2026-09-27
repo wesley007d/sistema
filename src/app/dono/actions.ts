@@ -126,3 +126,113 @@ export async function gerarSenhaProvisoria(
   revalidatePath(`/dono/assinaturas/${alvo.companyId}`);
   return { senha };
 }
+
+type ZerarState = { ok?: string; erro?: string } | undefined;
+
+/**
+ * Zera os dados de movimento de uma empresa cliente que usou o sistema para
+ * testar: produtos, estoque, vendas, OS, XMLs, financeiro e caixa — e,
+ * se marcado, clientes/fornecedores. Mantém empresa, usuários,
+ * configurações, contas de caixa e assinatura.
+ *
+ * Notas fiscais emitidas em PRODUÇÃO são documento fiscal: ficam, só perdem o
+ * vínculo com venda/produto/cliente. A numeração de NF-e/NFS-e não volta a 1
+ * (a SEFAZ rejeitaria número repetido); só a de venda, OS e produto.
+ */
+export async function zerarDadosEmpresa(
+  companyId: string,
+  _prev: ZerarState,
+  formData: FormData,
+): Promise<ZerarState> {
+  await requireOwner();
+  if (companyId === PLATAFORMA_COMPANY_ID)
+    return { erro: "A empresa da plataforma não pode ser zerada." };
+  const empresa = await prisma.company.findUnique({ where: { id: companyId } });
+  if (!empresa) return { erro: "Empresa não encontrada." };
+
+  const nome = (empresa.nomeFantasia || empresa.razaoSocial).trim();
+  const digitado = str(formData.get("confirmacao"));
+  if (digitado.toLocaleLowerCase("pt-BR") !== nome.toLocaleLowerCase("pt-BR"))
+    return { erro: `Digite exatamente o nome da empresa: ${nome}` };
+  const apagarParceiros = formData.get("parceiros") === "on";
+
+  const where = { companyId };
+  await prisma.$transaction(
+    async (tx) => {
+      // notas de produção ficam: solta os vínculos com o que vai ser apagado
+      const idsMantidas = (
+        await tx.invoice.findMany({
+          where: { companyId, ambiente: "PRODUCAO" },
+          select: { id: true },
+        })
+      ).map((n) => n.id);
+      if (idsMantidas.length > 0) {
+        await tx.invoice.updateMany({
+          where: { id: { in: idsMantidas } },
+          data: {
+            saleId: null,
+            serviceOrderId: null,
+            ...(apagarParceiros ? { partnerId: null } : {}),
+          },
+        });
+        await tx.invoiceItem.updateMany({
+          where: { invoiceId: { in: idsMantidas } },
+          data: { productId: null },
+        });
+        await tx.invoiceServiceItem.updateMany({
+          where: { invoiceId: { in: idsMantidas } },
+          data: { serviceId: null },
+        });
+      }
+
+      // financeiro e caixa
+      await tx.cashTransaction.deleteMany({ where });
+      await tx.settlement.deleteMany({ where });
+      await tx.financialEntry.deleteMany({ where });
+      await tx.cashRegisterSession.deleteMany({ where });
+
+      // documentos
+      await tx.invoice.deleteMany({ where: { companyId, id: { notIn: idsMantidas } } });
+      await tx.xmlDocument.deleteMany({
+        where: {
+          companyId,
+          OR: [
+            { direcao: "ENTRADA" },
+            { invoiceId: null },
+            { invoiceId: { notIn: idsMantidas } },
+          ],
+        },
+      });
+
+      // movimento e catálogo
+      await tx.sale.deleteMany({ where });
+      await tx.serviceOrder.deleteMany({ where });
+      await tx.stockMovement.deleteMany({ where });
+      const fotos = await tx.product.findMany({
+        where: { companyId, imagemUrl: { startsWith: "/api/files/" } },
+        select: { imagemUrl: true },
+      });
+      await tx.product.deleteMany({ where });
+      const idsFotos = fotos.map((f) => f.imagemUrl!.slice("/api/files/".length));
+      if (idsFotos.length > 0)
+        await tx.uploadedFile.deleteMany({ where: { companyId, id: { in: idsFotos } } });
+      await tx.category.deleteMany({ where });
+      await tx.service.deleteMany({ where });
+
+      if (apagarParceiros) await tx.partner.deleteMany({ where });
+
+      await tx.sequence.deleteMany({
+        where: { companyId, name: { in: ["venda", "os", "produto"] } },
+      });
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
+
+  revalidatePath("/dono");
+  revalidatePath(`/dono/assinaturas/${companyId}`);
+  return {
+    ok:
+      `Dados de ${nome} zerados.` +
+      (apagarParceiros ? " Clientes e fornecedores também foram apagados." : ""),
+  };
+}
