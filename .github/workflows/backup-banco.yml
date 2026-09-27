@@ -1,0 +1,58 @@
+# Backup automático do banco (Neon Postgres).
+#
+# - De hora em hora das 8h às 19h (horário de Brasília), segunda a sábado:
+#   guardado por 3 dias.
+# - Todo dia às 3h (horário de Brasília): guardado por 30 dias.
+#
+# O repositório é público, então o arquivo é criptografado (AES-256) antes de
+# subir. Sem a senha BACKUP_PASSWORD ninguém consegue abrir.
+#
+# Secrets necessários: DATABASE_URL (banco de produção) e BACKUP_PASSWORD.
+#
+# Para restaurar: baixar o artifact em Actions → execução → Artifacts, e então
+#   gpg --batch --passphrase "SENHA" -d backup-XXXX.dump.gpg > backup.dump
+#   pg_restore --clean --if-exists --no-owner --no-acl -d "URL_DO_BANCO" backup.dump
+
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: "0 11-22 * * 1-6" # 8h–19h BRT, seg–sáb
+    - cron: "0 6 * * *" # 3h BRT, todo dia
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Gerar e criptografar o backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSWORD" ]; then
+            echo "Faltam os secrets DATABASE_URL e/ou BACKUP_PASSWORD" >&2
+            exit 1
+          fi
+          # pg_dump precisa da conexão direta, não do pooler do Neon.
+          URL="$(printf '%s' "$DATABASE_URL" | sed 's/-pooler\./\./')"
+          STAMP="$(TZ=America/Sao_Paulo date +%Y-%m-%d_%Hh%M)"
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          docker run --rm -e URL="$URL" postgres:18 \
+            sh -c 'pg_dump --format=custom --no-owner --no-acl "$URL"' > backup.dump
+          test -s backup.dump
+          printf '%s' "$BACKUP_PASSWORD" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 --symmetric --cipher-algo AES256 \
+            -o "backup-$STAMP.dump.gpg" backup.dump
+          rm backup.dump
+          ls -lh "backup-$STAMP.dump.gpg"
+
+      - name: Guardar backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ env.STAMP }}${{ github.event.schedule == '0 6 * * *' && '-diario' || '' }}
+          path: backup-${{ env.STAMP }}.dump.gpg
+          retention-days: ${{ github.event.schedule == '0 6 * * *' && 30 || 3 }}
+          compression-level: 0
