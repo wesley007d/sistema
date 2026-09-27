@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireOwner, PLATAFORMA_COMPANY_ID } from "@/lib/auth";
+import { randomInt } from "node:crypto";
+import { hashPassword, requireOwner, PLATAFORMA_COMPANY_ID } from "@/lib/auth";
 import { parseNumber, str } from "@/lib/format";
 
 const STATUS_VALIDOS = ["TESTE", "ATIVA", "VENCIDA", "CANCELADA"];
@@ -93,4 +94,35 @@ export async function excluirPagamento(id: string, companyId: string) {
   await prisma.assinaturaPagamento.deleteMany({ where: { id, companyId } });
   revalidatePath("/dono/assinaturas");
   revalidatePath(`/dono/assinaturas/${companyId}`);
+}
+
+type SenhaState = { senha?: string; erro?: string } | undefined;
+
+/**
+ * A dona gera uma senha provisória para um usuário de uma empresa cliente
+ * (a senha real não pode ser lida — só o hash fica no banco). O usuário entra
+ * com ela e é obrigado a definir uma nova em /trocar-senha.
+ */
+export async function gerarSenhaProvisoria(
+  userId: string,
+  _prev: SenhaState,
+): Promise<SenhaState> {
+  await requireOwner();
+  const alvo = await prisma.user.findUnique({ where: { id: userId } });
+  if (!alvo) return { erro: "Usuário não encontrado. Atualize a página." };
+  if (alvo.companyId === PLATAFORMA_COMPANY_ID)
+    return { erro: "Use a tela de perfil para a senha da plataforma." };
+
+  // sem caracteres que confundem ao ditar/ler (0/O, 1/l/I)
+  const alfabeto = "abcdefghjkmnpqrstuvwxyz23456789";
+  let senha = "";
+  for (let i = 0; i < 8; i++) senha += alfabeto[randomInt(alfabeto.length)];
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { senhaHash: await hashPassword(senha), senhaProvisoria: true },
+  });
+  await prisma.session.deleteMany({ where: { userId } });
+  revalidatePath(`/dono/assinaturas/${alvo.companyId}`);
+  return { senha };
 }

@@ -5,6 +5,7 @@ import { PLATAFORMA_COMPANY_ID, requireOwner } from "@/lib/auth";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { rotuloStatusAssinatura, situacaoAssinatura } from "@/lib/assinatura";
 import { excluirPagamento } from "../../actions";
+import { SenhaProvisoriaButton } from "./SenhaProvisoriaButton";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,25 @@ export default async function HistoricoAssinaturaPage({
   const empresa = await prisma.company.findUnique({ where: { id: companyId } });
   if (!empresa) notFound();
 
-  const pagamentos = await prisma.assinaturaPagamento.findMany({
-    where: { companyId },
-    orderBy: { pagoEm: "desc" },
-  });
+  const [pagamentos, usuarios] = await Promise.all([
+    prisma.assinaturaPagamento.findMany({
+      where: { companyId },
+      orderBy: { pagoEm: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { companyId },
+      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+        role: true,
+        ativo: true,
+        senhaProvisoria: true,
+        ultimoLogin: true,
+      },
+    }),
+  ]);
 
   const s = situacaoAssinatura({
     assinaturaStatus: empresa.assinaturaStatus,
@@ -93,6 +109,61 @@ export default async function HistoricoAssinaturaPage({
           </p>
         </div>
       </div>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+          Acessos ({usuarios.length})
+        </h2>
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="th text-left">Usuário</th>
+                <th className="th text-left">Login (e-mail)</th>
+                <th className="th text-left">Papel</th>
+                <th className="th text-left">Último login</th>
+                <th className="th text-left">Senha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usuarios.length === 0 && (
+                <tr>
+                  <td className="td text-muted" colSpan={5}>
+                    Nenhum usuário cadastrado.
+                  </td>
+                </tr>
+              )}
+              {usuarios.map((u) => (
+                <tr key={u.id} className="border-t border-border align-top">
+                  <td className="td">
+                    <div className="font-medium">{u.nome}</div>
+                    {!u.ativo && <div className="text-xs text-red-600">inativo</div>}
+                  </td>
+                  <td className="td font-mono text-xs select-all">{u.email}</td>
+                  <td className="td">{u.role === "ADMIN" ? "Admin" : "Funcionário"}</td>
+                  <td className="td text-muted">
+                    {u.ultimoLogin ? u.ultimoLogin.toLocaleString("pt-BR") : "nunca entrou"}
+                  </td>
+                  <td className="td">
+                    {u.senhaProvisoria && (
+                      <div className="mb-1 text-xs text-amber-700">
+                        provisória (ainda não trocou)
+                      </div>
+                    )}
+                    <SenhaProvisoriaButton userId={u.id} email={u.email} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          A senha que a pessoa criou não pode ser vista (fica guardada
+          embaralhada). Para acessar, gere uma senha provisória — a senha antiga
+          para de funcionar e, no próximo login, o sistema obriga a criar uma nova.
+          Avise o cliente.
+        </p>
+      </section>
 
       <div className="mt-8 overflow-x-auto">
         {pagamentos.length === 0 ? (

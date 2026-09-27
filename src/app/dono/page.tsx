@@ -606,7 +606,12 @@ export default async function DonoPage() {
               {linhasOrd.map((l) => (
                 <tr key={l.id}>
                   <td className="td">
-                    <div className="font-medium">{l.nome}</div>
+                    <Link
+                      href={`/dono/assinaturas/${l.id}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {l.nome}
+                    </Link>
                     {l.sub && <div className="text-xs text-muted">{l.sub}</div>}
                   </td>
                   <td className="td">
