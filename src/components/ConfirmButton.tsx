@@ -7,15 +7,19 @@ export function ConfirmButton({
   children,
   message = "Tem certeza?",
   className = "btn-danger",
+  form,
 }: {
   children: React.ReactNode;
   message?: string;
   className?: string;
+  /** id do <form> quando o botão fica fora dele */
+  form?: string;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
+      form={form}
       className={className}
       disabled={pending}
       onClick={(e) => {

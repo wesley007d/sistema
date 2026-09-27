@@ -2,7 +2,10 @@ import Link from "next/link";
 import { can, requireDb } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
 import { CatalogoTabs } from "@/components/CatalogoTabs";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { money, num } from "@/lib/format";
+import { deleteProducts } from "./actions";
+import { SelecionarTodos } from "./SelecionarTodos";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,8 @@ export default async function ProdutosPage({
     take: 200,
   });
 
+  const podeExcluir = user.role === "ADMIN" && can(user, "produtos");
+
   return (
     <div>
       <CatalogoTabs canServicos={can(user, "servicos")} />
@@ -49,10 +54,27 @@ export default async function ProdutosPage({
         />
       </form>
 
-      <div className="card overflow-x-auto">
+      {podeExcluir && produtos.length > 0 && (
+        <div className="mb-2 flex justify-end">
+          <ConfirmButton
+            form="form-produtos"
+            className="btn-danger text-sm"
+            message="Excluir os produtos selecionados? Os que já tiveram venda, OS ou nota ficam só inativados."
+          >
+            Excluir selecionados
+          </ConfirmButton>
+        </div>
+      )}
+
+      <form id="form-produtos" action={deleteProducts} className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr>
+              {podeExcluir && (
+                <th className="th w-8">
+                  <SelecionarTodos form="form-produtos" />
+                </th>
+              )}
               <th className="th"></th>
               <th className="th">SKU</th>
               <th className="th">Produto</th>
@@ -66,7 +88,7 @@ export default async function ProdutosPage({
           <tbody>
             {produtos.length === 0 && (
               <tr>
-                <td className="td text-muted" colSpan={8}>
+                <td className="td text-muted" colSpan={podeExcluir ? 9 : 8}>
                   Nenhum produto encontrado.{" "}
                   <Link href="/produtos/novo" className="text-primary">
                     Cadastrar o primeiro
@@ -78,6 +100,16 @@ export default async function ProdutosPage({
               const baixo = p.estoque <= p.estoqueMinimo;
               return (
                 <tr key={p.id} className="hover:bg-background">
+                  {podeExcluir && (
+                    <td className="td">
+                      <input
+                        type="checkbox"
+                        name="ids"
+                        value={p.id}
+                        aria-label={`Selecionar ${p.nome}`}
+                      />
+                    </td>
+                  )}
                   <td className="td">
                     {p.imagemUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -137,7 +169,7 @@ export default async function ProdutosPage({
             })}
           </tbody>
         </table>
-      </div>
+      </form>
     </div>
   );
 }

@@ -379,10 +379,35 @@ export async function desfazerLancamento(docId: string) {
 
 export async function deleteXml(docId: string) {
   const { db } = await requireDbPermission("xml");
-  const doc = await db.xmlDocument.findUniqueOrThrow({ where: { id: docId } });
+  const doc = await db.xmlDocument.findUniqueOrThrow({
+    where: { id: docId },
+    include: { items: true },
+  });
   if (doc.status === "LANCADO")
-    throw new Error("Não é possível excluir um XML já lançado em estoque.");
-  await db.xmlDocument.delete({ where: { id: docId } });
+    throw new Error("Desfaça o lançamento antes de excluir este XML.");
+
+  // produtos criados ao vincular itens desta nota ("criar novo") e nunca
+  // usados em mais nada saem junto com ela
+  const ids = [...new Set(doc.items.map((i) => i.productId).filter((x): x is string => !!x))];
+  await db.$transaction(async (tx) => {
+    await tx.xmlDocument.delete({ where: { id: docId } });
+    for (const id of ids) {
+      const p = await tx.product.findUnique({ where: { id } });
+      if (!p || p.createdAt < doc.createdAt || p.estoque !== 0) continue;
+      const usos =
+        (await tx.stockMovement.count({ where: { productId: id } })) +
+        (await tx.saleItem.count({ where: { productId: id } })) +
+        (await tx.serviceOrderItem.count({ where: { productId: id } })) +
+        (await tx.invoiceItem.count({ where: { productId: id } })) +
+        (await tx.xmlItem.count({ where: { productId: id } }));
+      if (usos > 0) continue;
+      await tx.product.delete({ where: { id } });
+      if (p.imagemUrl?.startsWith("/api/files/"))
+        await tx.uploadedFile.deleteMany({
+          where: { id: p.imagemUrl.slice("/api/files/".length) },
+        });
+    }
+  });
   revalidatePath("/xml");
   redirect("/xml");
 }

@@ -193,7 +193,45 @@ export async function deleteProduct(id: string) {
   } else {
     const p = await db.product.findUnique({ where: { id }, select: { imagemUrl: true } });
     await apagarArquivo(db, p?.imagemUrl);
+    // item de XML vinculado não impede a exclusão: só perde o vínculo
+    await db.xmlItem.updateMany({
+      where: { productId: id },
+      data: { productId: null, vinculado: false },
+    });
     await db.product.delete({ where: { id } });
+  }
+  revalidatePath("/produtos");
+  redirect("/produtos");
+}
+
+/**
+ * Exclui vários produtos de uma vez (seleção na lista). Mesma regra do
+ * excluir individual: produto com venda, OS ou nota só é inativado.
+ */
+export async function deleteProducts(formData: FormData) {
+  const { user, db } = await requireDbPermission("produtos");
+  if (user.role !== "ADMIN")
+    throw new Error("Somente o administrador geral exclui produtos.");
+  const ids = formData.getAll("ids").map(String).filter(Boolean);
+  if (ids.length === 0) redirect("/produtos");
+
+  for (const id of ids) {
+    const p = await db.product.findUnique({ where: { id }, select: { imagemUrl: true } });
+    if (!p) continue;
+    const usado =
+      (await db.saleItem.count({ where: { productId: id } })) +
+      (await db.invoiceItem.count({ where: { productId: id } })) +
+      (await db.serviceOrderItem.count({ where: { productId: id } }));
+    if (usado > 0) {
+      await db.product.update({ where: { id }, data: { ativo: false } });
+    } else {
+      await db.xmlItem.updateMany({
+        where: { productId: id },
+        data: { productId: null, vinculado: false },
+      });
+      await db.product.delete({ where: { id } });
+      await apagarArquivo(db, p.imagemUrl);
+    }
   }
   revalidatePath("/produtos");
   redirect("/produtos");
