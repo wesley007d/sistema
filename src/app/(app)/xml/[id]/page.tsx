@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { money, date, num } from "@/lib/format";
 import { FORMAS_TPAG, parseNfeXml, sugestaoPagamento } from "@/lib/xml/parse-nfe";
-import { deleteXml, lancarEstoque, vincularItem } from "../actions";
+import { deleteXml, desfazerLancamento, lancarEstoque, vincularItem } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -227,6 +227,13 @@ export default async function XmlDetalhePage({
         <Link href="/xml" className="text-sm text-primary">
           ← voltar
         </Link>
+        {doc.status === "LANCADO" && doc.direcao === "ENTRADA" && (
+          <form action={desfazerLancamento.bind(null, id)}>
+            <ConfirmButton message="Desfazer o lançamento desta nota? O estoque que ela deu entrada sai, os produtos criados só por ela são apagados e as contas a pagar/pagamentos gerados são removidos.">
+              Desfazer lançamento
+            </ConfirmButton>
+          </form>
+        )}
         {doc.status !== "LANCADO" && (
           <form action={deleteXml.bind(null, id)}>
             <ConfirmButton message="Excluir este XML?">Excluir XML</ConfirmButton>

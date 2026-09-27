@@ -290,6 +290,93 @@ export async function lancarEstoque(docId: string, formData: FormData) {
   revalidatePath("/produtos");
 }
 
+/**
+ * Desfaz o lançamento de um XML de compra: tira do estoque o que a nota deu
+ * entrada, apaga os produtos que só existiam por causa dela (sem outra
+ * movimentação, venda, OS ou nota) e remove o financeiro gerado (títulos,
+ * baixas e saídas de caixa). A nota volta para "importado" e pode ser excluída.
+ */
+export async function desfazerLancamento(docId: string) {
+  const { user, db } = await requireDbPermission("xml");
+  const doc = await db.xmlDocument.findUniqueOrThrow({
+    where: { id: docId },
+    include: { items: true },
+  });
+  if (doc.status !== "LANCADO") throw new Error("Este XML não está lançado.");
+
+  await db.$transaction(
+    async (tx) => {
+      const movs = await tx.stockMovement.findMany({
+        where: { origem: "NFE_ENTRADA", origemId: doc.id },
+      });
+      for (const m of movs) {
+        const p = await tx.product.findUnique({ where: { id: m.productId } });
+        if (!p) continue;
+        const [outrosMovs, vendas, os, notas, outrosXml] = await Promise.all([
+          tx.stockMovement.count({ where: { productId: p.id, id: { not: m.id } } }),
+          tx.saleItem.count({ where: { productId: p.id } }),
+          tx.serviceOrderItem.count({ where: { productId: p.id } }),
+          tx.invoiceItem.count({ where: { productId: p.id } }),
+          tx.xmlItem.count({ where: { productId: p.id, xmlDocumentId: { not: doc.id } } }),
+        ]);
+        if (outrosMovs + vendas + os + notas + outrosXml === 0) {
+          // produto criado só por esta nota: some junto
+          await tx.xmlItem.updateMany({
+            where: { xmlDocumentId: doc.id, productId: p.id },
+            data: { productId: null, vinculado: false },
+          });
+          await tx.product.delete({ where: { id: p.id } });
+          if (p.imagemUrl?.startsWith("/api/files/"))
+            await tx.uploadedFile.deleteMany({
+              where: { id: p.imagemUrl.slice("/api/files/".length) },
+            });
+        } else {
+          const saldo = p.estoque - m.quantidade;
+          await tx.product.update({ where: { id: p.id }, data: { estoque: saldo } });
+          await tx.stockMovement.create({
+            data: {
+              companyId: user.companyId,
+              productId: p.id,
+              tipo: "SAIDA",
+              quantidade: m.quantidade,
+              custoUnit: m.custoUnit,
+              saldoApos: saldo,
+              origem: "ESTORNO_NFE",
+              origemId: doc.id,
+              observacao: `Estorno XML ${doc.numero ?? ""} - ${doc.emitenteNome ?? ""}`.trim(),
+            },
+          });
+        }
+      }
+
+      // financeiro gerado no lançamento (mesma descrição usada em lancarEstoque)
+      const descricao = `Compra XML ${doc.numero ?? ""} - ${doc.emitenteNome ?? "fornecedor"}`;
+      const titulos = await tx.financialEntry.findMany({
+        where: {
+          tipo: "PAGAR",
+          categoria: "Compras",
+          OR: [{ descricao }, { descricao: { startsWith: `${descricao} (parcela ` } }],
+        },
+        select: { id: true, settlements: { select: { id: true } } },
+      });
+      const idsBaixas = titulos.flatMap((t) => t.settlements.map((b) => b.id));
+      if (idsBaixas.length > 0)
+        await tx.cashTransaction.deleteMany({ where: { settlementId: { in: idsBaixas } } });
+      await tx.financialEntry.deleteMany({
+        where: { id: { in: titulos.map((t) => t.id) } },
+      });
+
+      await tx.xmlDocument.update({ where: { id: doc.id }, data: { status: "IMPORTADO" } });
+    },
+    { timeout: 30_000 },
+  );
+
+  revalidatePath(`/xml/${docId}`);
+  revalidatePath("/xml");
+  revalidatePath("/produtos");
+  revalidatePath("/financeiro");
+}
+
 export async function deleteXml(docId: string) {
   const { db } = await requireDbPermission("xml");
   const doc = await db.xmlDocument.findUniqueOrThrow({ where: { id: docId } });
