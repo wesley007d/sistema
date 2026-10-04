@@ -8,6 +8,7 @@ import { str } from "@/lib/format";
 import { FORMAS_TPAG, parseNfeXml } from "@/lib/xml/parse-nfe";
 import { getDefaultCashAccount } from "@/lib/finance";
 import { gerarSkuProduto } from "@/lib/produto-sku";
+import { marcaPeloGtin } from "@/lib/marca-ean";
 
 /** Importa um ou mais arquivos XML (NF-e / NFS-e) de entrada */
 export async function importXml(formData: FormData) {
@@ -87,13 +88,35 @@ export async function importXml(formData: FormData) {
   );
 }
 
+/**
+ * Código de barras de cada item, relido do XML guardado (o item no banco não
+ * tem essa coluna). Chave: código + descrição do item.
+ */
+function gtinsDoXml(conteudo: string | null) {
+  const mapa = new Map<string, string>();
+  if (!conteudo) return mapa;
+  for (const it of parseNfeXml(conteudo).items)
+    if (it.gtin) mapa.set(`${it.codigo}|${it.descricao}`, it.gtin);
+  return mapa;
+}
+
+const chaveItem = (it: { codigo: string | null; descricao: string }) =>
+  `${it.codigo}|${it.descricao}`;
+
 async function autoVincular(db: ScopedDb, docId: string) {
-  const itens = await db.xmlItem.findMany({ where: { xmlDocumentId: docId } });
-  for (const it of itens) {
-    if (!it.codigo) continue;
-    const prod = await db.product.findFirst({
-      where: { OR: [{ sku: it.codigo }, { codigoBarras: it.codigo }] },
-    });
+  const doc = await db.xmlDocument.findUniqueOrThrow({
+    where: { id: docId },
+    include: { items: true },
+  });
+  const gtins = gtinsDoXml(doc.conteudo);
+  for (const it of doc.items) {
+    const gtin = gtins.get(chaveItem(it));
+    const ou = [
+      ...(it.codigo ? [{ sku: it.codigo }, { codigoBarras: it.codigo }] : []),
+      ...(gtin ? [{ codigoBarras: gtin }] : []),
+    ];
+    if (ou.length === 0) continue;
+    const prod = await db.product.findFirst({ where: { OR: ou } });
     if (prod) {
       await db.xmlItem.update({
         where: { id: it.id },
@@ -108,11 +131,17 @@ export async function vincularItem(itemId: string, formData: FormData) {
   const { user, db } = await requireDbPermission("xml");
   const productId = str(formData.get("productId"));
   const criarNovo = str(formData.get("criarNovo")) === "1";
-  const item = await db.xmlItem.findUniqueOrThrow({ where: { id: itemId } });
+  const item = await db.xmlItem.findUniqueOrThrow({
+    where: { id: itemId },
+    include: { xmlDocument: { select: { conteudo: true } } },
+  });
 
   let finalProductId = productId;
 
-  if (criarNovo) finalProductId = await produtoDoItem(db, user.companyId, item);
+  if (criarNovo) {
+    const gtin = gtinsDoXml(item.xmlDocument.conteudo).get(chaveItem(item)) ?? null;
+    finalProductId = await produtoDoItem(db, user.companyId, item, gtin);
+  }
 
   if (!finalProductId) throw new Error("Selecione um produto ou marque 'criar novo'.");
 
@@ -134,8 +163,10 @@ export async function criarTodosNovos(docId: string) {
   if (doc.status === "LANCADO")
     throw new Error("Este XML já foi lançado em estoque.");
 
+  const gtins = gtinsDoXml(doc.conteudo);
   for (const item of doc.items.filter((i) => !i.vinculado)) {
-    const productId = await produtoDoItem(db, user.companyId, item);
+    const gtin = gtins.get(chaveItem(item)) ?? null;
+    const productId = await produtoDoItem(db, user.companyId, item, gtin);
     await db.xmlItem.update({
       where: { id: item.id },
       data: { productId, vinculado: true },
@@ -147,7 +178,8 @@ export async function criarTodosNovos(docId: string) {
 /**
  * Produto para um item da nota: usa o código do fornecedor como SKU (ajuda a
  * casar em importações futuras) ou gera um automático se a nota não trouxe
- * código. Se já existe produto com esse SKU, reaproveita.
+ * código. Se já existe produto com esse SKU, reaproveita. Grava o código de
+ * barras da nota e herda a marca de outro produto do mesmo fabricante.
  */
 async function produtoDoItem(
   db: ScopedDb,
@@ -159,17 +191,29 @@ async function produtoDoItem(
     valorUnit: number;
     ncm: string | null;
   },
+  gtin: string | null,
 ) {
   const sku = item.codigo || (await gerarSkuProduto(db, companyId));
   const existe = await db.product.findUnique({
     where: { companyId_sku: { companyId, sku } },
   });
-  if (existe) return existe.id;
+  if (existe) {
+    if (gtin && (!existe.codigoBarras || !existe.marca)) {
+      const marca = existe.marca || (await marcaPeloGtin(db, gtin));
+      await db.product.update({
+        where: { id: existe.id },
+        data: { codigoBarras: existe.codigoBarras || gtin, marca },
+      });
+    }
+    return existe.id;
+  }
   const novo = await db.product.create({
     data: {
       companyId,
       sku,
       nome: item.descricao,
+      codigoBarras: gtin,
+      marca: await marcaPeloGtin(db, gtin),
       unidade: item.unidade || "UN",
       precoCusto: item.valorUnit,
       precoVenda: Math.round(item.valorUnit * 1.4 * 100) / 100,

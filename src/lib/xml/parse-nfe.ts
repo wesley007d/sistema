@@ -1,7 +1,10 @@
 import { XMLParser } from "fast-xml-parser";
+import { gtinValido } from "@/lib/marca-ean";
 
 export interface ParsedXmlItem {
   codigo: string | null;
+  /** Código de barras (cEAN); null quando "SEM GTIN". */
+  gtin: string | null;
   descricao: string;
   ncm: string | null;
   cfop: string | null;
@@ -111,6 +114,7 @@ export function parseNfeXml(xml: string): ParsedXml {
       const prod = (d.prod ?? {}) as Record<string, unknown>;
       return {
         codigo: s(prod.cProd),
+        gtin: gtinValido(s(prod.cEAN) ?? s(prod.cEANTrib)),
         descricao: String(prod.xProd ?? "Item"),
         ncm: s(prod.NCM),
         cfop: s(prod.CFOP),
@@ -181,6 +185,7 @@ export function parseNfeXml(xml: string): ParsedXml {
       valorTotal: n(valores.ValorLiquidoNfse ?? valores.ValorServicos),
       items: servicos.map((sv: Record<string, unknown>) => ({
         codigo: s(sv.ItemListaServico),
+        gtin: null,
         descricao: String(sv.Discriminacao ?? "Servico"),
         ncm: null,
         cfop: null,

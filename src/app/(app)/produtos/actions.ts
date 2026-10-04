@@ -6,6 +6,7 @@ import { requireDbAnyPermission, requireDbPermission } from "@/lib/auth";
 import type { ScopedDb } from "@/lib/tenant-db";
 import { bool, optStr, parseNumber, str } from "@/lib/format";
 import { gerarSkuProduto } from "@/lib/produto-sku";
+import { espalharMarca } from "@/lib/marca-ean";
 import { conferirAdmin } from "@/lib/aprovacao";
 import {
   MIME_IMAGEM_OK,
@@ -174,6 +175,8 @@ export async function updateProduct(id: string, formData: FormData) {
       ...(imagemUrl !== undefined ? { imagemUrl } : {}),
     },
   });
+  // mesma marca para os outros produtos do fabricante que ainda estão sem
+  await espalharMarca(db, id, data.codigoBarras, data.marca);
   revalidatePath("/produtos");
   revalidatePath(`/produtos/${id}`);
   redirect("/produtos");
