@@ -12,6 +12,14 @@ export async function getOpenCashSession(db: ScopedDb) {
   });
 }
 
+/** Venda só com caixa aberto: o dinheiro tem que cair num turno de caixa. */
+export async function exigirCaixaAberto(db: ScopedDb) {
+  const sessao = await getOpenCashSession(db);
+  if (!sessao)
+    throw new Error("O caixa está fechado. Abra o caixa (menu Caixa) antes de vender.");
+  return sessao;
+}
+
 export interface CaixaResumo {
   abertura: number;
   entradas: number;

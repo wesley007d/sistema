@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { can, requireDb } from "@/lib/auth";
 import { LIMITE_DESCONTO_VENDEDOR } from "@/lib/aprovacao";
+import { getOpenCashSession } from "@/lib/caixa";
 import { PageHeader } from "@/components/PageHeader";
 import { PDV } from "./PDV";
 import { finalizarVenda, salvarOrcamento, salvarPreVenda } from "../actions";
@@ -23,7 +24,7 @@ export default async function PdvPage({
   const { user, db } = await requireDb();
   // Vendedor (só permissão `pdv`): monta a venda e envia ao caixa, não fecha.
   const soPreVenda = !can(user, "vendas");
-  const [parceiros, osTecnicos, vendaMecs] = await Promise.all([
+  const [parceiros, osTecnicos, vendaMecs, sessaoCaixa] = await Promise.all([
     db.partner.findMany({
       where: { ativo: true, tipo: { in: ["CLIENTE", "AMBOS"] } },
       orderBy: { nome: "asc" },
@@ -41,6 +42,7 @@ export default async function PdvPage({
       select: { mecanico: true },
       take: 50,
     }),
+    getOpenCashSession(db),
   ]);
   const mecanicos = [
     ...new Set(
@@ -66,6 +68,13 @@ export default async function PdvPage({
           </Link>
         }
       />
+      {!soPreVenda && !sessaoCaixa && (
+        <p className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          O caixa está <strong>fechado</strong> — a venda só pode ser finalizada depois de{" "}
+          <Link href="/caixa" className="font-semibold underline">abrir o caixa</Link>.
+          Orçamento e pré-venda continuam liberados.
+        </p>
+      )}
       <PDV
         partners={parceiros}
         mecanicos={mecanicos}

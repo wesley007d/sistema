@@ -226,6 +226,22 @@ async function produtoDoItem(
 }
 
 /**
+ * Produto em que o usuário já trabalhou (foto, descrição, marca, categoria,
+ * prateleira, estoque mínimo). Esse cadastro nunca é apagado ao desfazer ou
+ * excluir a nota — ao reimportar, o item volta a ser ligado a ele pelo código.
+ */
+function cadastroCompletado(p: {
+  imagemUrl: string | null;
+  descricao: string | null;
+  marca: string | null;
+  categoryId: string | null;
+  localizacao: string | null;
+  estoqueMinimo: number;
+}) {
+  return !!(p.imagemUrl || p.descricao || p.marca || p.categoryId || p.localizacao || p.estoqueMinimo > 0);
+}
+
+/**
  * Lança os itens vinculados no estoque e gera o financeiro da compra:
  * - PAGO: título já quitado, com a saída registrada na conta escolhida;
  * - PRAZO: um título a pagar por parcela da nota (ou um só, no vencimento
@@ -407,8 +423,8 @@ export async function desfazerLancamento(docId: string) {
           tx.invoiceItem.count({ where: { productId: p.id } }),
           tx.xmlItem.count({ where: { productId: p.id, xmlDocumentId: { not: doc.id } } }),
         ]);
-        if (outrosMovs + vendas + os + notas + outrosXml === 0) {
-          // produto criado só por esta nota: some junto
+        if (outrosMovs + vendas + os + notas + outrosXml === 0 && !cadastroCompletado(p)) {
+          // produto criado só por esta nota e nunca completado: some junto
           await tx.xmlItem.updateMany({
             where: { xmlDocumentId: doc.id, productId: p.id },
             data: { productId: null, vinculado: false },
@@ -481,7 +497,7 @@ export async function deleteXml(docId: string) {
     await tx.xmlDocument.delete({ where: { id: docId } });
     for (const id of ids) {
       const p = await tx.product.findUnique({ where: { id } });
-      if (!p || p.createdAt < doc.createdAt || p.estoque !== 0) continue;
+      if (!p || p.createdAt < doc.createdAt || p.estoque !== 0 || cadastroCompletado(p)) continue;
       const usos =
         (await tx.stockMovement.count({ where: { productId: id } })) +
         (await tx.saleItem.count({ where: { productId: id } })) +

@@ -65,13 +65,13 @@ export default async function CaixaPage({
             </Link>
           }
         />
-        {!sessao && (
-          <p className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-            O caixa está <strong>fechado</strong>. Você pode receber, mas o ideal
-            é <Link href="/caixa" className="underline">abrir o caixa</Link>{" "}
-            antes de começar o turno.
+        {!sessao ? (
+          <p className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+            O caixa está <strong>fechado</strong>. Para receber esta venda,{" "}
+            <Link href="/caixa" className="font-semibold underline">abra o caixa</Link>{" "}
+            primeiro.
           </p>
-        )}
+        ) : (
         <CaixaReceber
           action={receberVenda.bind(
             null,
@@ -98,6 +98,7 @@ export default async function CaixaPage({
             mecanico: it.mecanico,
           }))}
         />
+        )}
       </div>
     );
   }

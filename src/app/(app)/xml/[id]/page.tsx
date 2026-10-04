@@ -268,7 +268,7 @@ export default async function XmlDetalhePage({
         </Link>
         {doc.status === "LANCADO" && doc.direcao === "ENTRADA" && (
           <form action={desfazerLancamento.bind(null, id)}>
-            <ConfirmButton message="Desfazer o lançamento desta nota? O estoque que ela deu entrada sai, os produtos criados só por ela são apagados e as contas a pagar/pagamentos gerados são removidos.">
+            <ConfirmButton message="Desfazer o lançamento desta nota? O estoque que ela deu entrada sai, os produtos criados só por ela são apagados (menos os que você já completou com foto, descrição ou marca) e as contas a pagar/pagamentos gerados são removidos.">
               Desfazer lançamento
             </ConfirmButton>
           </form>

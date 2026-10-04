@@ -17,6 +17,7 @@ import {
 /** vendedor (pdv) OU operador de caixa (vendas). */
 const PDV_OU_CAIXA = ["vendas", "pdv"];
 import { getDefaultCashAccount } from "@/lib/finance";
+import { exigirCaixaAberto } from "@/lib/caixa";
 import { emitInvoice } from "@/app/(app)/notas/actions";
 import {
   conferirAdmin,
@@ -172,6 +173,7 @@ async function emitirNfeDaVenda(
 export async function finalizarVenda(formData: FormData) {
   // Fechar a venda com pagamento é do operador de caixa (não do vendedor).
   const { user, db } = await requireDbPermission("vendas");
+  await exigirCaixaAberto(db);
   const itens = parseArrayJson(str(formData.get("itens")), cartRowSchema, "itens");
   const pagamentos = parseArrayJson(
     str(formData.get("pagamentos")),
@@ -573,6 +575,7 @@ export async function receberVenda(
 ) {
   // Receber pré-venda é do operador de caixa.
   const { user, db } = await requireDbPermission("vendas");
+  await exigirCaixaAberto(db);
   const pagamentos = parseArrayJson(
     str(formData.get("pagamentos")),
     payRowSchema,
