@@ -8,6 +8,7 @@ import { bool, optStr, parseNumber, str } from "@/lib/format";
 import { gerarSkuProduto } from "@/lib/produto-sku";
 import { espalharMarca } from "@/lib/marca-ean";
 import { conferirAdmin } from "@/lib/aprovacao";
+import { conferirCodigo } from "@/lib/autorizacao-remota";
 import {
   MIME_IMAGEM_OK,
   apagarArquivo,
@@ -86,11 +87,16 @@ export async function createProduct(formData: FormData) {
   }
   // Funcionário só cadastra produto novo com um admin autorizando na hora.
   if (user.role !== "ADMIN") {
-    const adm = await conferirAdmin(
-      user.companyId,
-      str(formData.get("adminEmail")),
-      str(formData.get("adminSenha")),
-    );
+    const token = str(formData.get("autorizacaoToken"));
+    const codigo = str(formData.get("autorizacaoCodigo"));
+    // admin à distância: código que ele mandou pelo WhatsApp
+    const adm = token && codigo
+      ? await conferirCodigo(user.companyId, "produto", token, codigo)
+      : await conferirAdmin(
+          user.companyId,
+          str(formData.get("adminEmail")),
+          str(formData.get("adminSenha")),
+        );
     if (!adm)
       throw new Error(
         "Cadastro de produto novo precisa da autorização de um administrador (e-mail e senha corretos).",

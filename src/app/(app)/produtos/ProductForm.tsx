@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Product } from "@prisma/client";
 import { Field, SelectField } from "@/components/Field";
 import { SubmitButton } from "@/components/SubmitButton";
-import { PasswordInput } from "@/components/PasswordInput";
+import { AutorizacaoAdmin } from "@/components/AutorizacaoAdmin";
 import { BuscarFotoGoogle } from "./BuscarFotoGoogle";
 import { EtiquetaPrevia } from "./EtiquetaPrevia";
 import { PrecoCalculator } from "./PrecoCalculator";
@@ -227,33 +227,10 @@ export function ProductForm({
             Autorização do administrador
           </h2>
           <p className="mb-3 mt-1 text-sm text-amber-800">
-            Cadastrar um produto novo precisa de um administrador liberando na
-            hora. Peça para ele digitar e-mail e senha:
+            Cadastrar um produto novo precisa de um administrador liberando. Se ele
+            estiver aqui, digita e-mail e senha; se não, peça pelo WhatsApp:
           </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label" htmlFor="adminEmail">
-                E-mail do administrador
-              </label>
-              <input
-                id="adminEmail"
-                name="adminEmail"
-                type="email"
-                autoComplete="off"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="label" htmlFor="adminSenha">
-                Senha do administrador
-              </label>
-              <PasswordInput
-                id="adminSenha"
-                name="adminSenha"
-                autoComplete="off"
-              />
-            </div>
-          </div>
+          <AutorizacaoAdmin tipo="produto" descricao="Cadastrar um produto novo no sistema" />
         </section>
       )}
 

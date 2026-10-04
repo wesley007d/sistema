@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { money } from "@/lib/format";
 import { calcPagamento } from "@/lib/pagamento";
-import { PasswordInput } from "@/components/PasswordInput";
+import { AutorizacaoAdmin } from "@/components/AutorizacaoAdmin";
 
 function FinalizarButton({
   habilitado,
@@ -806,19 +806,12 @@ export function PDV({
                 ? "Um administrador pode liberar agora informando e-mail e senha. Sem isso, a venda vai para a fila de aprovação e só segue para o caixa depois de aprovada."
                 : "Não dá para finalizar com esse desconto. Use \"Salvar p/ o caixa\" com e-mail e senha de um administrador, ou sem eles para mandar à fila de aprovação."}
             </p>
-            <div className="mt-3 space-y-2">
-              <input
-                type="email"
-                name="adminEmail"
-                autoComplete="off"
-                placeholder="E-mail do administrador (opcional)"
-                className="input py-1 text-sm"
-              />
-              <PasswordInput
-                name="adminSenha"
-                autoComplete="off"
-                placeholder="Senha do administrador (opcional)"
-                className="input py-1 text-sm"
+            <div className="mt-3">
+              <AutorizacaoAdmin
+                tipo="desconto"
+                descricao={`Desconto de ${pctTotalDesconto.toFixed(1)}% numa venda de ${money(total)}`}
+                pct={pctTotalDesconto}
+                compacto
               />
             </div>
           </section>

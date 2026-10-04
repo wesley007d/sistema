@@ -26,6 +26,7 @@ import {
 } from "@/lib/aprovacao";
 import type { ScopedDb } from "@/lib/tenant-db";
 import { semDesconto } from "@/lib/desconto";
+import { conferirCodigo } from "@/lib/autorizacao-remota";
 
 const cartRowSchema = z.object({
   tipo: z.enum(["PECA", "SERVICO"]).optional(),
@@ -456,7 +457,18 @@ async function criarVendaRascunho(
   if (pct > LIMITE_DESCONTO_VENDEDOR + 0.001) {
     const adminEmail = str(formData.get("adminEmail"));
     const adminSenha = str(formData.get("adminSenha"));
-    if (adminEmail || adminSenha) {
+    const token = str(formData.get("autorizacaoToken"));
+    const codigo = str(formData.get("autorizacaoCodigo"));
+    if (token && codigo) {
+      // admin à distância: código que ele mandou pelo WhatsApp
+      const pedido = await conferirCodigo(user.companyId, "desconto", token, codigo);
+      if (pct > (pedido.p ?? 0) + 0.05)
+        throw new Error(
+          `O código autoriza desconto de até ${(pedido.p ?? 0).toFixed(1)}% e esta venda está com ${pct.toFixed(1)}%. Peça de novo pelo WhatsApp.`,
+        );
+      aprovadaPor = `Administrador pelo WhatsApp (código, pedido de ${pedido.r})`;
+      aprovadaEm = new Date();
+    } else if (adminEmail || adminSenha) {
       const admin = await conferirAdmin(user.companyId, adminEmail, adminSenha);
       if (!admin)
         throw new Error(
