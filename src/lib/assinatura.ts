@@ -50,11 +50,16 @@ export function situacaoAssinatura(
 
   let bloqueada = false;
   let emAtraso = false;
+  // pela hora exata: no dia do vencimento diasRestantes ainda dá 0
+  const vencida = !!vence && agora.getTime() > vence.getTime();
 
   if (status === "CANCELADA" || status === "VENCIDA") {
     bloqueada = true;
-  } else if (diasRestantes !== null && diasRestantes < 0) {
-    if (diasRestantes < -TOLERANCIA_DIAS) bloqueada = true;
+  } else if (vencida && status === "TESTE") {
+    // teste grátis acabou: bloqueia na hora (tolerância é só para quem paga)
+    bloqueada = true;
+  } else if (vencida) {
+    if (agora.getTime() > vence!.getTime() + TOLERANCIA_DIAS * MS_DIA) bloqueada = true;
     else emAtraso = true;
   }
 

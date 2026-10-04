@@ -62,8 +62,9 @@ export default async function AssinaturaBloqueadaPage() {
         <div className="rounded-xl border border-border bg-surface p-7 shadow-sm">
           <span className="badge bg-red-100 text-red-700">Acesso suspenso</span>
           <h1 className="mt-3 text-xl font-semibold">
-            A assinatura de {nomeEmpresa} está{" "}
-            {s.status === "CANCELADA" ? "cancelada" : "em atraso"}.
+            {s.status === "TESTE"
+              ? `O teste grátis de ${nomeEmpresa} terminou.`
+              : `A assinatura de ${nomeEmpresa} está ${s.status === "CANCELADA" ? "cancelada" : "em atraso"}.`}
           </h1>
 
           <dl className="mt-4 space-y-1 text-sm text-muted">
