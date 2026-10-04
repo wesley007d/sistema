@@ -7,7 +7,11 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { CopyButton } from "@/components/CopyButton";
 import { PixAguardando } from "@/components/PixAguardando";
 import { date, money } from "@/lib/format";
-import { rotuloStatusAssinatura, situacaoAssinatura } from "@/lib/assinatura";
+import {
+  MENSALIDADE_PADRAO,
+  rotuloStatusAssinatura,
+  situacaoAssinatura,
+} from "@/lib/assinatura";
 import { gerarCobrancaPix } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +31,7 @@ export default async function AssinaturaBloqueadaPage() {
       email: true,
       assinaturaStatus: true,
       assinaturaVence: true,
+      assinaturaValor: true,
     },
   });
 
@@ -50,7 +55,10 @@ export default async function AssinaturaBloqueadaPage() {
       : null;
   const agoraMs = new Date().getTime();
   const cobrancaValida =
-    cobrancaPendente && agoraMs - cobrancaPendente.createdAt.getTime() < VALIDADE_MS
+    cobrancaPendente &&
+    agoraMs - cobrancaPendente.createdAt.getTime() < VALIDADE_MS &&
+    // valor da mensalidade mudou depois de gerar: mostra o botão para gerar outra
+    cobrancaPendente.valor === (empresa?.assinaturaValor || MENSALIDADE_PADRAO)
       ? cobrancaPendente
       : null;
 

@@ -21,15 +21,19 @@ export async function gerarCobrancaPix(): Promise<void> {
 
   const company = await prisma.company.findUniqueOrThrow({ where: { id: user.companyId } });
 
+  const valor = company.assinaturaValor || MENSALIDADE_PADRAO;
   const existente = await prisma.cobrancaPix.findFirst({
     where: { companyId: company.id, status: "PENDENTE" },
     orderBy: { createdAt: "desc" },
   });
-  if (existente && Date.now() - existente.createdAt.getTime() < VALIDADE_MS) {
+  // reaproveita só se ainda vale E é do valor atual (o dono pode ter mudado)
+  if (
+    existente &&
+    existente.valor === valor &&
+    Date.now() - existente.createdAt.getTime() < VALIDADE_MS
+  ) {
     return;
   }
-
-  const valor = company.assinaturaValor || MENSALIDADE_PADRAO;
   const order = await criarOrderPix({
     valor,
     externalReference: company.id,
