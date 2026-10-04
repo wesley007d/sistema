@@ -6,6 +6,8 @@ import { Logo } from "@/components/Logo";
 import { SubmitButton } from "@/components/SubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import { signupCompany } from "./actions";
+import { MENSALIDADE_PADRAO } from "@/lib/assinatura";
+import { money } from "@/lib/format";
 
 type State = { erro?: string } | undefined;
 
@@ -48,7 +50,7 @@ export function CadastroForm() {
         <p className="rounded-md bg-primary-soft px-3 py-2 text-sm text-foreground">
           <strong>Teste grátis por 7 dias.</strong> Depois desse período, se a
           implantação foi feita, a mensalidade é de{" "}
-          <strong>R$ 170,00/mês</strong>.
+          <strong>{money(MENSALIDADE_PADRAO)}/mês</strong>.
         </p>
 
         <div>

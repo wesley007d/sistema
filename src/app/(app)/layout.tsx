@@ -5,7 +5,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { AtalhosTeclado } from "@/components/AtalhosTeclado";
 import { isOwner, permissionsOf, requireDb } from "@/lib/auth";
 import { cssTemaEmpresa } from "@/lib/cor";
-import { situacaoAssinatura } from "@/lib/assinatura";
+import { MENSALIDADE_PADRAO, situacaoAssinatura } from "@/lib/assinatura";
+import { money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       menuColorido: true,
       assinaturaStatus: true,
       assinaturaVence: true,
+      assinaturaValor: true,
     },
   });
 
@@ -81,7 +83,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               ? ` — faltam ${assinatura.diasRestantes} dia(s)`
               : ""}
             . Depois disso, se a implantação foi feita, a mensalidade é de{" "}
-            <strong>R$ 170,00/mês</strong>.
+            <strong>{money(empresa?.assinaturaValor || MENSALIDADE_PADRAO)}/mês</strong>.
           </div>
         )}
         <div className="mx-auto max-w-6xl p-6 sm:p-8">{children}</div>
