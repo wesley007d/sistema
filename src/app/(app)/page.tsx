@@ -5,10 +5,33 @@ import { can, requireDb } from "@/lib/auth";
 import type { ScopedDb } from "@/lib/tenant-db";
 import { resolvePeriod } from "@/lib/period";
 import { montarDre } from "@/lib/dre";
+import {
+  ArrowDownToLine,
+  BarChart3,
+  Banknote,
+  ChartPie,
+  PackagePlus,
+  ReceiptText,
+  ScanBarcode,
+  Wallet,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { PaisagemAutoPecas } from "@/components/PaisagemAutoPecas";
+import { getOpenCashSession } from "@/lib/caixa";
 import { StatusBadge } from "./notas/StatusBadge";
 import { OSStatusBadge } from "./ordens-servico/OSStatusBadge";
 
 export const dynamic = "force-dynamic";
+
+const FUSO = "America/Sao_Paulo";
+
+function saudacao(): string {
+  const hora = Number(
+    new Date().toLocaleString("pt-BR", { hour: "numeric", hour12: false, timeZone: FUSO }),
+  );
+  return hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+}
 
 export default async function DashboardPage() {
   const { user, db } = await requireDb();
@@ -38,6 +61,7 @@ export default async function DashboardPage() {
     semEstoque, abaixoMin, xmlPendente,
     recebimentos30, pagamentos30, venceHoje,
     serie14Vendas, serie14OS, vendasRecentes, ultimasNotas, osRecentes, estoqueBaixo,
+    caixa, maisVendidos,
   ] = await Promise.all([
     db.sale.aggregate({ _sum: { total: true }, _count: true, where: { status: "FINALIZADA", finalizadaEm: { gte: inicioDia } } }),
     db.sale.aggregate({ _sum: { total: true }, _count: true, where: { status: "FINALIZADA", finalizadaEm: { gte: inicioMes } } }),
@@ -65,7 +89,20 @@ export default async function DashboardPage() {
     db.invoice.findMany({ take: 5, orderBy: { createdAt: "desc" }, include: { partner: true } }),
     db.serviceOrder.findMany({ take: 5, orderBy: { numero: "desc" }, include: { partner: true, vehicle: true } }),
     db.product.findMany({ where: { ativo: true, estoque: { lte: db.product.fields.estoqueMinimo } }, orderBy: { estoque: "asc" }, take: 6 }),
+    getOpenCashSession(db),
+    db.saleItem.groupBy({
+      by: ["productId"],
+      where: { tipo: "PECA", productId: { not: null }, sale: { status: "FINALIZADA", finalizadaEm: { gte: inicioDia } } },
+      _sum: { total: true, quantidade: true },
+      orderBy: { _sum: { total: "desc" } },
+      take: 5,
+    }),
   ]);
+  const prodsMaisVendidos = await db.product.findMany({
+    where: { id: { in: maisVendidos.map((m) => m.productId as string) } },
+    select: { id: true, nome: true, sku: true, unidade: true, imagemUrl: true },
+  });
+  const prodPorId = new Map(prodsMaisVendidos.map((p) => [p.id, p]));
 
   const saldoCaixa =
     (contasAgg._sum.saldoInicial ?? 0) +
@@ -101,39 +138,74 @@ export default async function DashboardPage() {
   ].filter(Boolean) as { txt: string; href: string }[];
 
   const acoes = [
-    verVendas && { href: "/vendas/pdv", label: "Nova venda (PDV)" },
-    verOS && { href: "/ordens-servico/nova", label: "Nova OS" },
-    verNotas && { href: "/notas/nova-nfe", label: "Emitir NF-e" },
-    verXml && { href: "/xml", label: "Importar XML" },
-    verProdutos && { href: "/produtos/novo", label: "Novo produto" },
-  ].filter(Boolean) as { href: string; label: string }[];
+    verVendas && { href: "/vendas/pdv", icone: ScanBarcode, label: "PDV", desc: "Vender no balcão" },
+    verVendas && { href: "/caixa", icone: Wallet, label: "Caixa", desc: caixa ? "Aberto — conferir / fechar" : "Fechado — abrir" },
+    verOS && { href: "/ordens-servico/nova", icone: Wrench, label: "Nova OS", desc: "Serviço na oficina" },
+    verXml && { href: "/xml", icone: ArrowDownToLine, label: "Importar XML", desc: "Entrada de nota" },
+    verProdutos && { href: "/produtos/novo", icone: PackagePlus, label: "Novo produto", desc: "Cadastrar peça" },
+    can(user, "relatorios") && { href: "/relatorios/curva-abc", icone: ChartPie, label: "Curva ABC", desc: "Peças que mais vendem" },
+  ].filter(Boolean) as { href: string; icone: LucideIcon; label: string; desc: string }[];
+  const dataExtenso = now.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: FUSO,
+  });
 
   return (
     <div>
-      <div className="mb-6 flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            Olá, {user?.nome?.split(" ")[0] ?? "bem-vindo"} 👋
-          </h1>
-          <p className="text-muted">
-            {now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-          </p>
+      {/* faixa de boas-vindas com a fachada da loja */}
+      <section className="relative isolate mb-6 min-h-[220px] overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary-soft to-white shadow-sm">
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[62%] [mask-image:linear-gradient(to_right,transparent,black_30%)] sm:block">
+          <PaisagemAutoPecas className="h-full w-full" />
         </div>
-        {acoes.length > 0 && (
-          <div className="hidden flex-wrap gap-2 sm:flex">
-            {acoes.slice(0, 3).map((a) => (
-              <Link key={a.href} href={a.href} className="btn-ghost">
-                {a.label}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+        <div className="relative z-10 max-w-md p-6 sm:p-8">
+          <p className="text-sm font-medium text-muted first-letter:uppercase">{dataExtenso}</p>
+          <h1 className="mt-1 text-3xl font-bold leading-tight">
+            {saudacao()}, {user?.nome?.split(" ")[0] ?? "bem-vindo"}!
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {caixa
+              ? "O caixa está aberto. Boas vendas!"
+              : "O caixa ainda está fechado. Abra para começar a vender."}
+          </p>
+          {verVendas && (
+            <Link
+              href={caixa ? "/vendas/pdv" : "/caixa"}
+              className="btn-primary mt-4 inline-flex items-center gap-2 px-5 py-3 text-base"
+            >
+              {caixa ? <ScanBarcode className="size-5" /> : <Wallet className="size-5" />}
+              {caixa ? "Abrir PDV" : "Abrir o caixa"}
+            </Link>
+          )}
+        </div>
+      </section>
+
+      {acoes.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {acoes.map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              className="card flex items-center gap-3 p-3 transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+                <a.icone className="size-5" strokeWidth={1.9} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{a.label}</span>
+                <span className="block truncate text-xs text-muted">{a.desc}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {verVendas && (
           <Kpi
+            icone={ReceiptText}
             title="Vendas hoje"
             main={money(vendasHoje._sum.total ?? 0)}
             sub={`${num(vendasHoje._count)} venda(s)`}
@@ -142,6 +214,7 @@ export default async function DashboardPage() {
         )}
         {verFaturamento && (
           <Kpi
+            icone={Banknote}
             title="Faturamento do mês"
             main={money(fatMes)}
             sub={`vendas + serviços`}
@@ -150,6 +223,7 @@ export default async function DashboardPage() {
         )}
         {verFin && (
           <Kpi
+            icone={BarChart3}
             title="Resultado do mês"
             main={money(dre.resultado)}
             sub={`margem ${dre.margemLiquida.toFixed(1)}%`}
@@ -159,6 +233,7 @@ export default async function DashboardPage() {
         )}
         {verFin && (
           <Kpi
+            icone={Wallet}
             title="Saldo em caixa"
             main={money(saldoCaixa)}
             sub="todas as contas"
@@ -309,6 +384,46 @@ export default async function DashboardPage() {
             />
           )}
 
+          {verVendas && (
+            <section className="card">
+              <header className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h2 className="font-semibold">Mais vendidos hoje</h2>
+                {can(user, "relatorios") && (
+                  <Link href="/relatorios/curva-abc" className="text-sm text-primary">curva ABC</Link>
+                )}
+              </header>
+              {maisVendidos.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-muted">Nenhuma peça vendida hoje ainda.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {maisVendidos.map((m, i) => {
+                    const p = prodPorId.get(m.productId as string);
+                    return (
+                      <li key={m.productId ?? i} className="flex items-center gap-3 px-4 py-2.5">
+                        <span className="w-4 text-center text-sm font-semibold text-muted">{i + 1}</span>
+                        {p?.imagemUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.imagemUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                            <Wrench className="size-4" />
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{p?.nome ?? "Produto excluído"}</span>
+                          <span className="text-xs text-muted">
+                            {num(m._sum.quantidade ?? 0)} {p?.unidade ?? "UN"}
+                          </span>
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums">{money(m._sum.total ?? 0)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          )}
+
           {verProdutos && (
             <section className="card">
               <header className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -345,16 +460,21 @@ async function sumSaldo(db: ScopedDb, tipo: string, where: Record<string, unknow
 }
 
 function Kpi({
-  title, main, sub, accent = "", href,
+  icone: Icone, title, main, sub, accent = "", href,
 }: {
-  title: string; main: string; sub?: string; accent?: string; href?: string;
+  icone: LucideIcon; title: string; main: string; sub?: string; accent?: string; href?: string;
 }) {
   const inner = (
-    <>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">{title}</p>
-      <p className={`mt-2 text-2xl font-bold tracking-tight ${accent}`}>{main}</p>
-      {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
-    </>
+    <div className="flex items-start gap-3">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+        <Icone className="size-5" strokeWidth={1.9} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">{title}</p>
+        <p className={`mt-1 truncate text-2xl font-bold tracking-tight tabular-nums ${accent}`}>{main}</p>
+        {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+      </div>
+    </div>
   );
   return href ? (
     <Link
