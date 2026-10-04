@@ -4,6 +4,11 @@
 #   guardado por 3 dias.
 # - Todo dia às 3h (horário de Brasília): guardado por 30 dias.
 #
+# O GitHub atrasa ou pula horários agendados quando está sobrecarregado
+# (principalmente na hora cheia). Por isso os horários são em minutos
+# "quebrados" e o backup de 30 dias não depende do horário das 3h: a primeira
+# execução que encontrar mais de 20h sem um backup "-diario" vira o diário.
+#
 # O repositório é público, então o arquivo é criptografado (AES-256) antes de
 # subir. Sem a senha BACKUP_PASSWORD ninguém consegue abrir.
 #
@@ -17,9 +22,12 @@ name: Backup do banco
 
 on:
   schedule:
-    - cron: "0 11-22 * * 1-6" # 8h–19h BRT, seg–sáb
-    - cron: "0 6 * * *" # 3h BRT, todo dia
+    - cron: "23 11-22 * * 1-6" # 8h–19h BRT, seg–sáb
+    - cron: "37 6 * * *" # 3h BRT, todo dia
   workflow_dispatch: {}
+
+permissions:
+  actions: read
 
 jobs:
   backup:
@@ -49,10 +57,27 @@ jobs:
           rm backup.dump
           ls -lh "backup-$STAMP.dump.gpg"
 
+      - name: Decidir se este é o backup diário
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DESDE="$(date -u -d '20 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          N="$(gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq "[.artifacts[] | select(.name | endswith(\"-diario\")) | select(.created_at > \"$DESDE\")] | length")"
+          if [ "$N" = "0" ]; then
+            echo "SUFIXO=-diario" >> "$GITHUB_ENV"
+            echo "DIAS=30" >> "$GITHUB_ENV"
+            echo "Este backup vai ser o diário (guardado 30 dias)"
+          else
+            echo "SUFIXO=" >> "$GITHUB_ENV"
+            echo "DIAS=3" >> "$GITHUB_ENV"
+          fi
+
       - name: Guardar backup
         uses: actions/upload-artifact@v4
         with:
-          name: backup-${{ env.STAMP }}${{ github.event.schedule == '0 6 * * *' && '-diario' || '' }}
+          name: backup-${{ env.STAMP }}${{ env.SUFIXO }}
           path: backup-${{ env.STAMP }}.dump.gpg
-          retention-days: ${{ github.event.schedule == '0 6 * * *' && 30 || 3 }}
+          retention-days: ${{ env.DIAS }}
           compression-level: 0
