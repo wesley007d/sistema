@@ -5,6 +5,7 @@ const tabs = [
   { href: "/relatorios/dre", label: "DRE" },
   { href: "/relatorios/vendas", label: "Vendas" },
   { href: "/relatorios/estoque", label: "Estoque" },
+  { href: "/relatorios/curva-abc", label: "Curva ABC" },
   { href: "/relatorios/titulos", label: "Recebíveis e dívidas" },
 ];
 
