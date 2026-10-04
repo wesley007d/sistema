@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireDbAnyPermission, requireDbPermission } from "@/lib/auth";
+import { requireDbAdmin, requireDbAnyPermission, requireDbPermission } from "@/lib/auth";
 import type { ScopedDb } from "@/lib/tenant-db";
 import { bool, optStr, parseNumber, str } from "@/lib/format";
 import { gerarSkuProduto } from "@/lib/produto-sku";
@@ -289,4 +289,21 @@ export async function adjustStock(id: string, formData: FormData) {
 
   revalidatePath(`/produtos/${id}`);
   revalidatePath("/produtos");
+}
+
+/** Dá a mesma marca a todos os produtos de um fabricante (prefixo do código de barras). */
+export async function definirMarcaFabricante(formData: FormData) {
+  const { db } = await requireDbAdmin();
+  const prefixo = str(formData.get("prefixo"));
+  const marca = str(formData.get("marca"));
+  if (!/^\d{7}$/.test(prefixo)) throw new Error("Grupo de fabricante inválido.");
+  if (!marca) throw new Error("Digite a marca.");
+  const r = await db.product.updateMany({
+    where: { codigoBarras: { startsWith: prefixo } },
+    data: { marca: marca.slice(0, 100) },
+  });
+  revalidatePath("/produtos");
+  redirect(
+    `/produtos/marcas?msg=${encodeURIComponent(`Marca "${marca}" aplicada em ${r.count} produto(s).`)}`,
+  );
 }

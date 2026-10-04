@@ -42,7 +42,18 @@ export default async function ProdutosPage({
       <PageHeader
         title="Produtos / Peças"
         subtitle={`${produtos.length} item(ns)`}
-        action={{ href: "/produtos/novo", label: "+ Novo produto" }}
+        action={
+          <div className="flex flex-wrap gap-2">
+            {user.role === "ADMIN" && (
+              <Link href="/produtos/marcas" className="btn-ghost">
+                Marcas por fabricante
+              </Link>
+            )}
+            <Link href="/produtos/novo" className="btn-primary">
+              + Novo produto
+            </Link>
+          </div>
+        }
       />
 
       <form className="mb-4">
