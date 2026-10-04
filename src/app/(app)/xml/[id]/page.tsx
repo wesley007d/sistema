@@ -6,7 +6,13 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { money, date, num } from "@/lib/format";
 import { FORMAS_TPAG, parseNfeXml, sugestaoPagamento } from "@/lib/xml/parse-nfe";
-import { deleteXml, desfazerLancamento, lancarEstoque, vincularItem } from "../actions";
+import {
+  criarTodosNovos,
+  deleteXml,
+  desfazerLancamento,
+  lancarEstoque,
+  vincularItem,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +34,7 @@ export default async function XmlDetalhePage({
   if (!doc) notFound();
 
   const vinculados = doc.items.filter((i) => i.vinculado).length;
+  const naoVinculados = doc.items.length - vinculados;
   const podeEntrada = doc.direcao === "ENTRADA" && doc.status !== "LANCADO";
 
   // como a nota diz que a compra foi paga (parcelas / forma de pagamento)
@@ -150,13 +157,25 @@ export default async function XmlDetalhePage({
       )}
 
       <section className="card overflow-x-auto">
-        <header className="border-b border-border px-4 py-3">
-          <h2 className="font-semibold">Itens do documento</h2>
-          {podeEntrada && (
-            <p className="text-xs text-muted">
-              Vincule cada item a um produto do catálogo (ou crie um novo) antes de
-              lançar em estoque.
-            </p>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div>
+            <h2 className="font-semibold">Itens do documento</h2>
+            {podeEntrada && (
+              <p className="text-xs text-muted">
+                Vincule cada item a um produto do catálogo (ou crie um novo) antes de
+                lançar em estoque.
+              </p>
+            )}
+          </div>
+          {podeEntrada && naoVinculados > 0 && (
+            <form action={criarTodosNovos.bind(null, id)}>
+              <ConfirmButton
+                className="btn-primary"
+                message={`Criar ${naoVinculados} produto(s) novo(s), um para cada item ainda não vinculado? Itens cujo código já existe no catálogo são ligados ao produto existente.`}
+              >
+                Criar novo para todos ({naoVinculados})
+              </ConfirmButton>
+            </form>
           )}
         </header>
         <table className="w-full text-sm">

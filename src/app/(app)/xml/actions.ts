@@ -112,29 +112,7 @@ export async function vincularItem(itemId: string, formData: FormData) {
 
   let finalProductId = productId;
 
-  if (criarNovo) {
-    // Usa o código do fornecedor (ajuda a casar em importações futuras);
-    // se a nota não trouxe código, gera um automático.
-    const sku = item.codigo || (await gerarSkuProduto(db, user.companyId));
-    const existe = await db.product.findUnique({
-      where: { companyId_sku: { companyId: user.companyId, sku } },
-    });
-    const novo = existe
-      ? existe
-      : await db.product.create({
-          data: {
-            companyId: user.companyId,
-            sku,
-            nome: item.descricao,
-            unidade: item.unidade || "UN",
-            precoCusto: item.valorUnit,
-            precoVenda: Math.round(item.valorUnit * 1.4 * 100) / 100,
-            ncm: item.ncm,
-            estoque: 0,
-          },
-        });
-    finalProductId = novo.id;
-  }
+  if (criarNovo) finalProductId = await produtoDoItem(db, user.companyId, item);
 
   if (!finalProductId) throw new Error("Selecione um produto ou marque 'criar novo'.");
 
@@ -146,7 +124,62 @@ export async function vincularItem(itemId: string, formData: FormData) {
   revalidatePath(`/xml/${doc.xmlDocumentId}`);
 }
 
-/** Lança as quantidades do XML como entrada de estoque nos produtos vinculados */
+/** Cria um produto novo para cada item ainda não vinculado da nota, de uma vez */
+export async function criarTodosNovos(docId: string) {
+  const { user, db } = await requireDbPermission("xml");
+  const doc = await db.xmlDocument.findUniqueOrThrow({
+    where: { id: docId },
+    include: { items: true },
+  });
+  if (doc.status === "LANCADO")
+    throw new Error("Este XML já foi lançado em estoque.");
+
+  for (const item of doc.items.filter((i) => !i.vinculado)) {
+    const productId = await produtoDoItem(db, user.companyId, item);
+    await db.xmlItem.update({
+      where: { id: item.id },
+      data: { productId, vinculado: true },
+    });
+  }
+  revalidatePath(`/xml/${docId}`);
+}
+
+/**
+ * Produto para um item da nota: usa o código do fornecedor como SKU (ajuda a
+ * casar em importações futuras) ou gera um automático se a nota não trouxe
+ * código. Se já existe produto com esse SKU, reaproveita.
+ */
+async function produtoDoItem(
+  db: ScopedDb,
+  companyId: string,
+  item: {
+    codigo: string | null;
+    descricao: string;
+    unidade: string | null;
+    valorUnit: number;
+    ncm: string | null;
+  },
+) {
+  const sku = item.codigo || (await gerarSkuProduto(db, companyId));
+  const existe = await db.product.findUnique({
+    where: { companyId_sku: { companyId, sku } },
+  });
+  if (existe) return existe.id;
+  const novo = await db.product.create({
+    data: {
+      companyId,
+      sku,
+      nome: item.descricao,
+      unidade: item.unidade || "UN",
+      precoCusto: item.valorUnit,
+      precoVenda: Math.round(item.valorUnit * 1.4 * 100) / 100,
+      ncm: item.ncm,
+      estoque: 0,
+    },
+  });
+  return novo.id;
+}
+
 /**
  * Lança os itens vinculados no estoque e gera o financeiro da compra:
  * - PAGO: título já quitado, com a saída registrada na conta escolhida;
@@ -169,7 +202,7 @@ export async function lancarEstoque(docId: string, formData: FormData) {
   const pagamento = str(formData.get("pagamento")) === "PAGO" ? "PAGO" : "PRAZO";
   const accountId = str(formData.get("accountId"));
   const vencStr = str(formData.get("vencimento"));
-  const vencimento = /^d{4}-d{2}-d{2}$/.test(vencStr)
+  const vencimento = /^\d{4}-\d{2}-\d{2}$/.test(vencStr)
     ? new Date(`${vencStr}T12:00:00`)
     : new Date();
   const parsed = doc.conteudo ? parseNfeXml(doc.conteudo) : null;
