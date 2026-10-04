@@ -114,7 +114,7 @@ export default async function AssinaturaBloqueadaPage() {
                       <input
                         readOnly
                         value={cobrancaValida.qrCode}
-                        onFocus={(e) => e.currentTarget.select()}
+                        aria-label="Pix copia e cola"
                         className="input text-xs"
                       />
                       <CopyButton texto={cobrancaValida.qrCode} className="btn-ghost mt-2 w-full text-sm" />
