@@ -9,6 +9,7 @@ import { FORMAS_TPAG, parseNfeXml } from "@/lib/xml/parse-nfe";
 import { getDefaultCashAccount } from "@/lib/finance";
 import { gerarSkuProduto } from "@/lib/produto-sku";
 import { marcaPeloGtin } from "@/lib/marca-ean";
+import { vendaPorMargem } from "@/lib/preco";
 
 /** Importa um ou mais arquivos XML (NF-e / NFS-e) de entrada */
 export async function importXml(formData: FormData) {
@@ -247,8 +248,8 @@ export async function lancarEstoque(docId: string, formData: FormData) {
   // % sobre o custo para já deixar o preço de venda pronto; vazio = não mexe
   const margemStr = str(formData.get("margem"));
   const margem = margemStr ? parseNumber(margemStr) : null;
-  if (margem != null && (margem < 0 || margem > 1000))
-    throw new Error("A porcentagem de venda precisa estar entre 0% e 1000%.");
+  if (margem != null && (margem < 0 || margem >= 100))
+    throw new Error("A margem precisa ser de 0% até 99% (é a parte do preço de venda que é lucro).");
   const accountId = str(formData.get("accountId"));
   const vencStr = str(formData.get("vencimento"));
   const vencimento = /^\d{4}-\d{2}-\d{2}$/.test(vencStr)
@@ -274,7 +275,7 @@ export async function lancarEstoque(docId: string, formData: FormData) {
           estoque: { increment: it.quantidade },
           ...(it.valorUnit ? { precoCusto: it.valorUnit } : {}),
           ...(it.valorUnit && margem != null
-            ? { precoVenda: Math.round(it.valorUnit * (1 + margem / 100) * 100) / 100 }
+            ? { precoVenda: vendaPorMargem(it.valorUnit, margem) }
             : {}),
         },
         select: { id: true, estoque: true },

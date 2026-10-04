@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-function round2(n: number) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
+import { margemDe, vendaPorMargem } from "@/lib/preco";
 function num(s: string): number {
   const n = Number(String(s).replace(",", "."));
   return Number.isFinite(n) ? n : NaN;
@@ -12,6 +9,7 @@ function num(s: string): number {
 
 /**
  * Custo × Margem de lucro (%) ⇄ Preço de venda, recalculado ao digitar.
+ * Margem sobre o preço de venda (não markup) — ver `@/lib/preco`.
  * Os três são campos reais do formulário (precoCusto, margemLucro, precoVenda);
  * a margem é só um auxílio de cálculo — o que se salva é custo e venda.
  * `readOnly` = só exibe (usado quando o usuário não é admin: preço é bloqueado).
@@ -29,31 +27,31 @@ export function PrecoCalculator({
   const [custoStr, setCusto] = useState(custo ? String(custo) : "");
   const [vendaStr, setVenda] = useState(venda ? String(venda) : "");
   const [margemStr, setMargem] = useState(
-    temValores ? String(round2((venda! / custo! - 1) * 100)) : "",
+    temValores ? String(margemDe(custo!, venda!)) : "",
   );
 
   function aoMudarCusto(v: string) {
     setCusto(v);
     const c = num(v);
     const m = num(margemStr);
-    if (Number.isFinite(c) && Number.isFinite(m)) {
-      setVenda(String(round2(c * (1 + m / 100))));
+    if (Number.isFinite(c) && Number.isFinite(m) && m < 100) {
+      setVenda(String(vendaPorMargem(c, m)));
     }
   }
   function aoMudarMargem(v: string) {
     setMargem(v);
     const c = num(custoStr);
     const m = num(v);
-    if (Number.isFinite(c) && Number.isFinite(m)) {
-      setVenda(String(round2(c * (1 + m / 100))));
+    if (Number.isFinite(c) && Number.isFinite(m) && m < 100) {
+      setVenda(String(vendaPorMargem(c, m)));
     }
   }
   function aoMudarVenda(v: string) {
     setVenda(v);
     const c = num(custoStr);
     const p = num(v);
-    if (Number.isFinite(c) && c > 0 && Number.isFinite(p)) {
-      setMargem(String(round2((p / c - 1) * 100)));
+    if (Number.isFinite(c) && Number.isFinite(p) && p > 0) {
+      setMargem(String(margemDe(c, p)));
     }
   }
 
@@ -87,6 +85,7 @@ export function PrecoCalculator({
           name="margemLucro"
           type="number"
           step="0.1"
+          max="99.9"
           placeholder="ex.: 40"
           value={margemStr}
           readOnly={readOnly}
@@ -95,7 +94,7 @@ export function PrecoCalculator({
         />
         {!readOnly && (
           <p className="mt-1 text-xs text-muted">
-            Preenche o preço de venda a partir do custo.
+            Quanto do preço de venda é lucro (ex.: 70% → custo R$ 10 vende a R$ 33,33).
           </p>
         )}
       </div>
