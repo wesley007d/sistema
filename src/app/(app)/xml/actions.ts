@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireDbPermission } from "@/lib/auth";
 import type { ScopedDb } from "@/lib/tenant-db";
-import { str } from "@/lib/format";
+import { parseNumber, str } from "@/lib/format";
 import { FORMAS_TPAG, parseNfeXml } from "@/lib/xml/parse-nfe";
 import { getDefaultCashAccount } from "@/lib/finance";
 import { gerarSkuProduto } from "@/lib/produto-sku";
@@ -244,6 +244,11 @@ export async function lancarEstoque(docId: string, formData: FormData) {
     throw new Error("Nenhum item vinculado a produto. Vincule os itens primeiro.");
 
   const pagamento = str(formData.get("pagamento")) === "PAGO" ? "PAGO" : "PRAZO";
+  // % sobre o custo para já deixar o preço de venda pronto; vazio = não mexe
+  const margemStr = str(formData.get("margem"));
+  const margem = margemStr ? parseNumber(margemStr) : null;
+  if (margem != null && (margem < 0 || margem > 1000))
+    throw new Error("A porcentagem de venda precisa estar entre 0% e 1000%.");
   const accountId = str(formData.get("accountId"));
   const vencStr = str(formData.get("vencimento"));
   const vencimento = /^\d{4}-\d{2}-\d{2}$/.test(vencStr)
@@ -257,31 +262,36 @@ export async function lancarEstoque(docId: string, formData: FormData) {
       .filter((f) => f && f !== "Sem pagamento")
       .join(", ") || null;
 
+  // Nota grande (200+ itens) com o banco remoto: 1 comando por item no
+  // estoque e as movimentações gravadas de uma vez no fim, com folga de tempo.
   await db.$transaction(async (tx) => {
+    const observacao = `XML ${doc.numero ?? ""} - ${doc.emitenteNome ?? ""}`.trim();
+    const movimentos = [];
     for (const it of vinculados) {
-      const p = await tx.product.findUniqueOrThrow({ where: { id: it.productId! } });
-      const saldo = p.estoque + it.quantidade;
-      await tx.product.update({
-        where: { id: p.id },
+      const p = await tx.product.update({
+        where: { id: it.productId! },
         data: {
-          estoque: saldo,
-          precoCusto: it.valorUnit || p.precoCusto,
+          estoque: { increment: it.quantidade },
+          ...(it.valorUnit ? { precoCusto: it.valorUnit } : {}),
+          ...(it.valorUnit && margem != null
+            ? { precoVenda: Math.round(it.valorUnit * (1 + margem / 100) * 100) / 100 }
+            : {}),
         },
+        select: { id: true, estoque: true },
       });
-      await tx.stockMovement.create({
-        data: {
-          companyId: user.companyId,
-          productId: p.id,
-          tipo: "ENTRADA",
-          quantidade: it.quantidade,
-          custoUnit: it.valorUnit,
-          saldoApos: saldo,
-          origem: "NFE_ENTRADA",
-          origemId: doc.id,
-          observacao: `XML ${doc.numero ?? ""} - ${doc.emitenteNome ?? ""}`.trim(),
-        },
+      movimentos.push({
+        companyId: user.companyId,
+        productId: p.id,
+        tipo: "ENTRADA",
+        quantidade: it.quantidade,
+        custoUnit: it.valorUnit,
+        saldoApos: p.estoque,
+        origem: "NFE_ENTRADA",
+        origemId: doc.id,
+        observacao,
       });
     }
+    await tx.stockMovement.createMany({ data: movimentos });
     await tx.xmlDocument.update({
       where: { id: docId },
       data: { status: "LANCADO" },
@@ -360,7 +370,7 @@ export async function lancarEstoque(docId: string, formData: FormData) {
         },
       });
     }
-  });
+  }, { timeout: 120_000, maxWait: 10_000 });
 
   revalidatePath(`/xml/${docId}`);
   revalidatePath("/xml");
@@ -445,7 +455,7 @@ export async function desfazerLancamento(docId: string) {
 
       await tx.xmlDocument.update({ where: { id: doc.id }, data: { status: "IMPORTADO" } });
     },
-    { timeout: 30_000 },
+    { timeout: 120_000, maxWait: 10_000 },
   );
 
   revalidatePath(`/xml/${docId}`);
@@ -484,7 +494,7 @@ export async function deleteXml(docId: string) {
           where: { id: p.imagemUrl.slice("/api/files/".length) },
         });
     }
-  });
+  }, { timeout: 120_000, maxWait: 10_000 });
   revalidatePath("/xml");
   redirect("/xml");
 }

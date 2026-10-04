@@ -151,6 +151,26 @@ export default async function XmlDetalhePage({
                 )}
               </span>
             </label>
+            <label className="block border-t border-border pt-4">
+              <span className="font-medium">Preço de venda: % sobre o custo</span>
+              <span className="block text-xs text-muted">
+                Ao lançar, o preço de venda de cada produto da nota passa a ser o custo
+                da nota + esta porcentagem (ex.: custo R$ 10,00 com 40% = R$ 14,00).
+                Deixe em branco para não mexer nos preços de venda.
+              </span>
+              <span className="mt-1 flex items-center gap-2">
+                <input
+                  type="number"
+                  name="margem"
+                  min={0}
+                  max={1000}
+                  step="0.01"
+                  defaultValue={40}
+                  className="input max-w-28"
+                />
+                <span className="text-sm">%</span>
+              </span>
+            </label>
             <SubmitButton>Lançar em estoque</SubmitButton>
           </form>
         </section>
