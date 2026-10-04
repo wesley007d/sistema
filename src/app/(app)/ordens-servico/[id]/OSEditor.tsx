@@ -61,12 +61,15 @@ export function OSEditor({
   vehicles,
   produtos,
   servicos,
+  podeAlterarPreco = false,
 }: {
   action: (formData: FormData) => void;
   os: OSData;
   vehicles: VehicleOpt[];
   produtos: CatProduct[];
   servicos: CatService[];
+  /** Preço de peça do cadastro só o administrador muda (o servidor confere). */
+  podeAlterarPreco?: boolean;
 }) {
   const readOnly = os.status === "ENTREGUE" || os.status === "CANCELADA";
 
@@ -415,7 +418,10 @@ export function OSEditor({
                         step="0.01"
                         className="input text-right"
                         value={r.precoUnit}
-                        disabled={readOnly}
+                        disabled={
+                          readOnly ||
+                          (r.tipo === "PECA" && r.refId !== "manual" && !podeAlterarPreco)
+                        }
                         onChange={(e) =>
                           update(i, { precoUnit: Number(e.target.value) })
                         }

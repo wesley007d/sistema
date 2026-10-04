@@ -98,6 +98,7 @@ export function PDV({
   preVenda,
   soPreVenda = false,
   limiteDesconto = 10,
+  podeAlterarPreco = false,
 }: {
   partners: { id: string; nome: string }[];
   /** Nomes de mecânicos já usados — sugestões no campo da linha de serviço. */
@@ -110,6 +111,8 @@ export function PDV({
   soPreVenda?: boolean;
   /** Desconto máx. (%) que o vendedor dá sem autorização de admin. */
   limiteDesconto?: number;
+  /** Só o administrador muda o preço de peça (o servidor também confere). */
+  podeAlterarPreco?: boolean;
 }) {
   const recebendo = !!preVenda;
   const [cart, setCart] = useState<CartRow[]>(preVenda?.itens ?? []);
@@ -428,7 +431,7 @@ export function PDV({
                 const linha = r.quantidade * r.precoUnit - r.desconto;
                 const isServico = r.tipo === "SERVICO";
                 // serviço não tem preço de tabela p/ travar — vendedor digita
-                const precoEditavel = !recebendo && (!soPreVenda || isServico);
+                const precoEditavel = !recebendo && (isServico || podeAlterarPreco);
                 return (
                   <tr key={i}>
                     <td className="td">

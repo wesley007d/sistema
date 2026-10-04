@@ -24,7 +24,7 @@ export default async function OSDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { db } = await requireDb();
+  const { user, db } = await requireDb();
   const { id } = await params;
   const [os, clientes, produtos, servicos] = await Promise.all([
     db.serviceOrder.findUnique({
@@ -164,6 +164,7 @@ export default async function OSDetalhePage({
         <div>
           <OSEditor
             action={saveServiceOrder.bind(null, id)}
+            podeAlterarPreco={user.role === "ADMIN"}
             os={{
               status: os.status,
               tecnico: os.tecnico,

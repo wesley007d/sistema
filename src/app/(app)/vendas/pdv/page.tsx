@@ -83,6 +83,7 @@ export default async function PdvPage({
         salvarOrcamentoAction={salvarOrcamento}
         soPreVenda={soPreVenda}
         limiteDesconto={LIMITE_DESCONTO_VENDEDOR}
+        podeAlterarPreco={user.role === "ADMIN"}
       />
     </div>
   );

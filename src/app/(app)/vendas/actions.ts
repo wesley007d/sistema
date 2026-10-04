@@ -87,6 +87,30 @@ async function travarNomeServicos(db: ScopedDb, itens: CartRow[]) {
   }
 }
 
+/**
+ * Preço de peça só o administrador muda. Para os demais, o servidor ignora o
+ * preço que veio da tela e usa o do cadastro (desconto é outro campo, com
+ * limite e aprovação próprios).
+ */
+async function travarPrecoPecas(db: ScopedDb, role: string, itens: CartRow[]) {
+  if (role === "ADMIN") return;
+  const ids = itens
+    .filter((r) => r.tipo !== "SERVICO" && r.productId)
+    .map((r) => r.productId as string);
+  const prods = ids.length
+    ? await db.product.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, precoVenda: true },
+      })
+    : [];
+  for (const r of itens) {
+    if (r.tipo === "SERVICO") continue;
+    const p = prods.find((x) => x.id === r.productId);
+    if (!p) throw new Error(`Peça "${r.descricao}" não está no cadastro de produtos.`);
+    r.precoUnit = p.precoVenda;
+  }
+}
+
 /** Normaliza uma linha do carrinho (peça ou serviço/mão de obra). */
 function normalizarItem(r: CartRow): ItemFinal {
   const tipo: "PECA" | "SERVICO" = r.tipo === "SERVICO" ? "SERVICO" : "PECA";
@@ -182,6 +206,7 @@ export async function finalizarVenda(formData: FormData) {
   );
   if (itens.length === 0) throw new Error("Adicione ao menos uma peça ou serviço.");
   await travarNomeServicos(db, itens);
+  await travarPrecoPecas(db, user.role, itens);
   if (itens.some((r) => r.tipo === "SERVICO" && !r.descricao?.trim()))
     throw new Error("Descreva a mão de obra de cada linha de serviço.");
 
@@ -347,27 +372,12 @@ async function criarVendaRascunho(
   if (itens.some((r) => r.tipo === "SERVICO" && !r.descricao?.trim()))
     throw new Error("Descreva a mão de obra de cada linha de serviço.");
 
-  // Vendedor (sem permissão `vendas`) não pode baixar preço nem dar desconto
-  // por item — trava o preço no valor de tabela. Só vale para peças (serviço
-  // avulso não tem preço de tabela).
+  // Preço de peça: só o admin muda (os demais ficam no preço do cadastro).
+  await travarPrecoPecas(db, user.role, itens);
+  // Vendedor (sem permissão `vendas`) não dá desconto por item — só o geral,
+  // com o limite de LIMITE_DESCONTO_VENDEDOR abaixo.
   const soVendedor = !can(user, "vendas");
-  if (soVendedor) {
-    const idsPeca = itens
-      .filter((r) => r.tipo !== "SERVICO" && r.productId)
-      .map((r) => r.productId as string);
-    const prods = idsPeca.length
-      ? await db.product.findMany({
-          where: { id: { in: idsPeca } },
-          select: { id: true, precoVenda: true },
-        })
-      : [];
-    for (const r of itens) {
-      if (r.tipo === "SERVICO") continue;
-      const p = prods.find((x) => x.id === r.productId);
-      if (p && r.precoUnit < p.precoVenda) r.precoUnit = p.precoVenda;
-      r.desconto = 0;
-    }
-  }
+  if (soVendedor) for (const r of itens) if (r.tipo !== "SERVICO") r.desconto = 0;
 
   const pagamentos = JSON.parse(
     str(formData.get("pagamentos")) || "[]",

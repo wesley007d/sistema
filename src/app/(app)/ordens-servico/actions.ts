@@ -134,6 +134,18 @@ export async function saveServiceOrder(id: string, formData: FormData) {
 
   const rows = parseArrayJson(str(formData.get("itens")), itemRowSchema, "itens");
 
+  // preço de peça do cadastro só o administrador muda
+  if (user.role !== "ADMIN") {
+    const ids = rows.filter((r) => r.tipo === "PECA" && r.productId).map((r) => r.productId as string);
+    const prods = ids.length
+      ? await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, precoVenda: true } })
+      : [];
+    for (const r of rows) {
+      const prod = r.tipo === "PECA" ? prods.find((x) => x.id === r.productId) : null;
+      if (prod) r.precoUnit = prod.precoVenda;
+    }
+  }
+
   let totalPecas = 0;
   let totalServicos = 0;
   const items = rows.map((r) => {
