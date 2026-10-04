@@ -25,6 +25,7 @@ import {
   pctDesconto,
 } from "@/lib/aprovacao";
 import type { ScopedDb } from "@/lib/tenant-db";
+import { semDesconto } from "@/lib/desconto";
 
 const cartRowSchema = z.object({
   tipo: z.enum(["PECA", "SERVICO"]).optional(),
@@ -110,6 +111,43 @@ async function travarPrecoPecas(db: ScopedDb, role: string, itens: CartRow[]) {
     r.precoUnit = p.precoVenda;
   }
 }
+
+/**
+ * Desconto de quem não é admin: lubrificante não pode ter desconto (erro), e o
+ * % (desconto dos itens + geral) é calculado só sobre o que aceita desconto.
+ */
+async function pctDescontoVendedor(
+  db: ScopedDb,
+  itens: {
+    tipo: string;
+    productId: string | null;
+    descricao: string;
+    quantidade: number;
+    precoUnit: number;
+    desconto: number;
+  }[],
+  descontoGeral: number,
+): Promise<number> {
+  const ids = itens.filter((r) => r.productId).map((r) => r.productId as string);
+  const prods = ids.length
+    ? await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, ncm: true } })
+    : [];
+  let bruto = 0;
+  let desconto = Math.max(0, descontoGeral);
+  for (const r of itens) {
+    const lub = r.tipo !== "SERVICO" && semDesconto(prods.find((x) => x.id === r.productId)?.ncm);
+    if (lub) {
+      if (r.desconto > 0.001) throw new Error(`Lubrificante não tem desconto: "${r.descricao}".`);
+      continue;
+    }
+    bruto += r.quantidade * r.precoUnit;
+    desconto += r.desconto;
+  }
+  if (bruto <= 0) return desconto > 0.001 ? Infinity : 0;
+  return pctDesconto(round(bruto), round(desconto));
+}
+
+const ERRO_LIMITE_DESCONTO = `Desconto acima de ${LIMITE_DESCONTO_VENDEDOR}% (lubrificante não entra na conta) só com o administrador. Salve como pré-venda para pedir a aprovação.`;
 
 /** Normaliza uma linha do carrinho (peça ou serviço/mão de obra). */
 function normalizarItem(r: CartRow): ItemFinal {
@@ -224,6 +262,11 @@ export async function finalizarVenda(formData: FormData) {
   });
   subtotal = round(subtotal);
   const total = round(subtotal - descontoGeral + acrescimo);
+  if (
+    user.role !== "ADMIN" &&
+    (await pctDescontoVendedor(db, itemData, descontoGeral)) > LIMITE_DESCONTO_VENDEDOR + 0.001
+  )
+    throw new Error(ERRO_LIMITE_DESCONTO);
 
   const pagos = pagamentos.filter((p) => p.valor > 0);
   const { pago: totalPago, troco, recebidoAgora } = calcPagamento(total, pagos);
@@ -392,28 +435,25 @@ async function criarVendaRascunho(
   const observacao = optStr(formData.get("observacao"));
 
   let subtotal = 0;
-  let brutoItens = 0;
   const itemData: ItemFinal[] = itens.map((r) => {
     const it = normalizarItem(r);
     subtotal += it.total;
-    brutoItens += it.quantidade * it.precoUnit;
     return it;
   });
   subtotal = round(subtotal);
-  brutoItens = round(brutoItens);
   const total = round(subtotal - descontoGeral + acrescimo);
 
-  // --- Desconto do vendedor acima do limite exige autorização ---
-  // Considera o desconto por item + o desconto geral, sobre o bruto dos itens.
-  const descontoItens = round(itemData.reduce((s, it) => s + it.desconto, 0));
-  const descontoTotalValor = round(descontoItens + Math.max(0, descontoGeral));
-  const pct = pctDesconto(brutoItens, descontoTotalValor);
+  // --- Desconto de quem não é admin acima do limite exige autorização ---
+  // Desconto por item + geral, sobre o bruto do que aceita desconto
+  // (lubrificante fica de fora e não pode ter desconto).
+  const pct =
+    user.role === "ADMIN" ? 0 : await pctDescontoVendedor(db, itemData, descontoGeral);
 
   let statusFinal: string = status;
   let aprovadaPor: string | null = null;
   let aprovadaEm: Date | null = null;
 
-  if (soVendedor && pct > LIMITE_DESCONTO_VENDEDOR + 0.001) {
+  if (pct > LIMITE_DESCONTO_VENDEDOR + 0.001) {
     const adminEmail = str(formData.get("adminEmail"));
     const adminSenha = str(formData.get("adminSenha"));
     if (adminEmail || adminSenha) {
@@ -604,6 +644,11 @@ export async function receberVenda(
   if (sale.status !== "ABERTA")
     throw new Error("Esta venda não está aguardando o caixa.");
   if (sale.items.length === 0) throw new Error("Venda sem itens.");
+
+  // o desconto já foi conferido ao salvar a pré-venda; no caixa, quem não é
+  // admin não muda o desconto (a tela não deixa — isto barra quem forçar)
+  if (user.role !== "ADMIN" && Math.abs(descontoGeral - sale.desconto) > 0.009)
+    throw new Error("Só o administrador muda o desconto da venda no caixa.");
 
   const partnerId = partnerIdForm ?? sale.partnerId;
   const subtotal = round(sale.items.reduce((s, it) => s + it.total, 0));

@@ -42,6 +42,8 @@ interface ProdResult {
   unidade: string;
   localizacao: string | null;
   imagemUrl: string | null;
+  /** lubrificante: não aceita desconto */
+  semDesconto?: boolean;
 }
 interface ServResult {
   kind: "servico";
@@ -65,6 +67,7 @@ interface CartRow {
   estoque: number;
   localizacao?: string | null;
   imagemUrl?: string | null;
+  semDesconto?: boolean;
 }
 interface Pay {
   forma: string;
@@ -185,6 +188,7 @@ export function PDV({
             estoque: p.estoque,
             localizacao: p.localizacao,
             imagemUrl: p.imagemUrl,
+            semDesconto: p.semDesconto,
           },
         ];
       }
@@ -260,8 +264,27 @@ export function PDV({
       cart.reduce((s, r) => s + (r.quantidade * r.precoUnit - r.desconto), 0),
     [cart],
   );
+  // o % de desconto geral vale só sobre o que aceita desconto (lubrificante não)
+  const baseDesconto = useMemo(
+    () =>
+      cart
+        .filter((r) => !r.semDesconto)
+        .reduce((s, r) => s + (r.quantidade * r.precoUnit - r.desconto), 0),
+    [cart],
+  );
   const descontoValor =
-    Math.round((subtotal * (descontoPct / 100) + Number.EPSILON) * 100) / 100;
+    Math.round((baseDesconto * (descontoPct / 100) + Number.EPSILON) * 100) / 100;
+  // % total dado (itens + geral) sobre o bruto do que aceita desconto
+  const brutoDescontavel = cart
+    .filter((r) => !r.semDesconto)
+    .reduce((s, r) => s + r.quantidade * r.precoUnit, 0);
+  const descontoItensValor = cart
+    .filter((r) => !r.semDesconto)
+    .reduce((s, r) => s + r.desconto, 0);
+  const pctTotalDesconto =
+    brutoDescontavel > 0
+      ? ((descontoItensValor + descontoValor) / brutoDescontavel) * 100
+      : 0;
   const total = Math.max(0, subtotal - descontoValor + acrescimo);
   const { pago, falta, troco } = calcPagamento(total, pagamentos);
 
@@ -278,7 +301,7 @@ export function PDV({
 
   // Vendedor dando desconto acima do limite → precisa de liberação de admin.
   const precisaAprovacaoDesc =
-    soPreVenda && descontoPct > limiteDesconto + 0.001;
+    !podeAlterarPreco && pctTotalDesconto > limiteDesconto + 0.001;
 
   return (
     <form action={action} className="grid gap-6 lg:grid-cols-[1fr_22rem]">
@@ -497,6 +520,11 @@ export function PDV({
                             ) : (
                               <>
                                 {r.sku}
+                                {r.semDesconto && (
+                                  <span className="badge ml-2 bg-amber-100 font-sans text-amber-800">
+                                    sem desconto
+                                  </span>
+                                )}
                                 <span
                                   className={`ml-2 ${
                                     r.quantidade > r.estoque
@@ -562,7 +590,7 @@ export function PDV({
                       )}
                     </td>
                     <td className="td text-right">
-                      {recebendo || soPreVenda ? (
+                      {recebendo || soPreVenda || (r.semDesconto && !podeAlterarPreco) ? (
                         money(r.desconto)
                       ) : (
                         <input
@@ -770,13 +798,13 @@ export function PDV({
         {precisaAprovacaoDesc && (
           <section className="card border-amber-300 bg-amber-50 p-4 text-sm">
             <p className="font-medium text-amber-800">
-              Desconto de {descontoPct.toFixed(1)}% acima do limite de{" "}
-              {limiteDesconto}%
+              Desconto de {pctTotalDesconto.toFixed(1)}% acima do limite de{" "}
+              {limiteDesconto}% (lubrificante não entra na conta)
             </p>
             <p className="mt-1 text-xs text-amber-700">
-              Um administrador pode liberar agora informando e-mail e senha. Sem
-              isso, a venda vai para a fila de aprovação e só segue para o caixa
-              depois de aprovada.
+              {soPreVenda
+                ? "Um administrador pode liberar agora informando e-mail e senha. Sem isso, a venda vai para a fila de aprovação e só segue para o caixa depois de aprovada."
+                : "Não dá para finalizar com esse desconto. Use \"Salvar p/ o caixa\" com e-mail e senha de um administrador, ou sem eles para mandar à fila de aprovação."}
             </p>
             <div className="mt-3 space-y-2">
               <input
@@ -829,7 +857,7 @@ export function PDV({
         ) : (
           <>
             <FinalizarButton
-              habilitado={podeFinalizar}
+              habilitado={podeFinalizar && !precisaAprovacaoDesc}
               total={total}
               rotulo={recebendo ? "Receber" : "Finalizar"}
             />

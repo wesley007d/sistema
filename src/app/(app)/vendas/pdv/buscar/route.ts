@@ -1,4 +1,5 @@
 import { requireDbAnyPermission } from "@/lib/auth";
+import { semDesconto } from "@/lib/desconto";
 
 export async function GET(req: Request) {
   const { db } = await requireDbAnyPermission(["vendas", "pdv"]);
@@ -28,6 +29,7 @@ export async function GET(req: Request) {
         unidade: true,
         localizacao: true,
         imagemUrl: true,
+        ncm: true,
       },
     }),
     db.service.findMany({
@@ -42,7 +44,11 @@ export async function GET(req: Request) {
   ]);
 
   return Response.json([
-    ...produtos.map((p) => ({ kind: "produto" as const, ...p })),
+    ...produtos.map(({ ncm, ...p }) => ({
+      kind: "produto" as const,
+      ...p,
+      semDesconto: semDesconto(ncm),
+    })),
     ...servicos.map((s) => ({
       kind: "servico" as const,
       id: s.id,
