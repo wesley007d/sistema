@@ -12,27 +12,36 @@ export const dynamic = "force-dynamic";
 export default async function ProdutosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; inativos?: string }>;
 }) {
   const { user, db } = await requireDb();
-  const { q = "" } = await searchParams;
+  const { q = "", inativos } = await searchParams;
   const termo = q.trim();
+  // excluir produto que já teve venda/OS/nota só inativa (guarda o histórico);
+  // por isso os inativos ficam escondidos, com um link para vê-los
+  const verInativos = inativos === "1";
 
-  const produtos = await db.product.findMany({
-    where: termo
-      ? {
-          OR: [
-            { nome: { contains: termo } },
-            { sku: { contains: termo } },
-            { codigoBarras: { contains: termo } },
-            { marca: { contains: termo } },
-          ],
-        }
-      : undefined,
-    include: { category: true },
-    orderBy: { nome: "asc" },
-    take: 200,
-  });
+  const [produtos, totalInativos] = await Promise.all([
+    db.product.findMany({
+      where: {
+        ativo: !verInativos,
+        ...(termo
+          ? {
+              OR: [
+                { nome: { contains: termo } },
+                { sku: { contains: termo } },
+                { codigoBarras: { contains: termo } },
+                { marca: { contains: termo } },
+              ],
+            }
+          : {}),
+      },
+      include: { category: true },
+      orderBy: { nome: "asc" },
+      take: 2000,
+    }),
+    db.product.count({ where: { ativo: false } }),
+  ]);
 
   const podeExcluir = user.role === "ADMIN" && can(user, "produtos");
 
@@ -41,7 +50,7 @@ export default async function ProdutosPage({
       <CatalogoTabs canServicos={can(user, "servicos")} />
       <PageHeader
         title="Produtos / Peças"
-        subtitle={`${produtos.length} item(ns)`}
+        subtitle={`${produtos.length} item(ns)${verInativos ? " inativo(s)" : ""}`}
         action={
           <div className="flex flex-wrap gap-2">
             {user.role === "ADMIN" && (
@@ -56,14 +65,32 @@ export default async function ProdutosPage({
         }
       />
 
-      <form className="mb-4">
+      <form className="mb-4 flex flex-wrap items-center gap-3">
+        {verInativos && <input type="hidden" name="inativos" value="1" />}
         <input
           name="q"
           defaultValue={termo}
           placeholder="Buscar por nome, SKU, código de barras ou marca…"
           className="input max-w-md"
         />
+        {verInativos ? (
+          <Link href="/produtos" className="text-sm text-primary">
+            ← voltar aos produtos ativos
+          </Link>
+        ) : (
+          totalInativos > 0 && (
+            <Link href="/produtos?inativos=1" className="text-sm text-muted underline">
+              ver {totalInativos} inativo(s)
+            </Link>
+          )
+        )}
       </form>
+      {verInativos && (
+        <p className="mb-4 text-sm text-muted">
+          Produtos inativos já foram usados em venda, OS ou nota — por isso não são apagados,
+          para não perder o histórico. Eles não aparecem no PDV nem nas buscas.
+        </p>
+      )}
 
       {podeExcluir && produtos.length > 0 && (
         <div className="mb-2 flex justify-end">
