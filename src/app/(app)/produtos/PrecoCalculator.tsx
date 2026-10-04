@@ -56,6 +56,9 @@ export function PrecoCalculator({
   }
 
   const cls = `input ${readOnly ? "bg-surface-2 text-muted" : ""}`;
+  // lucro em R$ por unidade (venda − custo), só quando os dois estão preenchidos
+  const lucro =
+    custoStr.trim() && vendaStr.trim() ? num(vendaStr) - num(custoStr) : NaN;
 
   return (
     <>
@@ -114,6 +117,15 @@ export function PrecoCalculator({
           onChange={(e) => aoMudarVenda(e.target.value)}
           className={cls}
         />
+        {Number.isFinite(lucro) && (
+          <p
+            className={`mt-1 text-sm font-medium ${lucro < 0 ? "text-red-600" : "text-green-700"}`}
+          >
+            {lucro < 0 ? "Prejuízo" : "Lucro"}:{" "}
+            {Math.abs(lucro).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por
+            unidade
+          </p>
+        )}
         {readOnly && (
           <p className="mt-1 text-xs text-muted">
             Somente o administrador geral altera preços.
