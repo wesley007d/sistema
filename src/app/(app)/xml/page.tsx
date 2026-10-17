@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireDb } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
 import { SubmitButton } from "@/components/SubmitButton";
-import { money, date } from "@/lib/format";
+import { money, date, num } from "@/lib/format";
 import { importXml } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,41 @@ export default async function XmlPage({
     orderBy: { createdAt: "desc" },
     take: 200,
   });
+
+  // Entrada de peça feita à mão (cadastro com estoque inicial ou "Entrada" na
+  // tela do produto): não tem XML, mas aparece aqui agrupada por dia para
+  // ficar registrada junto com as notas.
+  const movsManuais =
+    direcao === "SAIDA"
+      ? []
+      : await db.stockMovement.findMany({
+          where: { tipo: "ENTRADA", origem: "MANUAL" },
+          include: { product: { select: { id: true, sku: true, nome: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 500,
+        });
+  const manuais = new Map<
+    string,
+    { dia: Date; valor: number; itens: typeof movsManuais }
+  >();
+  for (const m of movsManuais) {
+    const chave = m.createdAt.toLocaleDateString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+    });
+    const g = manuais.get(chave) ?? { dia: m.createdAt, valor: 0, itens: [] };
+    g.valor += m.quantidade * m.custoUnit;
+    g.itens.push(m);
+    manuais.set(chave, g);
+  }
+  const linhas = [
+    ...docs.map((d) => ({ kind: "xml" as const, quando: d.createdAt, d })),
+    ...[...manuais.entries()].map(([chave, g]) => ({
+      kind: "manual" as const,
+      quando: g.dia,
+      chave,
+      g,
+    })),
+  ].sort((a, b) => b.quando.getTime() - a.quando.getTime());
 
   return (
     <div>
@@ -92,14 +127,53 @@ export default async function XmlPage({
             </tr>
           </thead>
           <tbody>
-            {docs.length === 0 && (
+            {linhas.length === 0 && (
               <tr>
                 <td className="td text-muted" colSpan={6}>
                   Nenhum XML. Importe um arquivo acima ou emita uma nota.
                 </td>
               </tr>
             )}
-            {docs.map((d) => (
+            {linhas.map((l) => {
+              if (l.kind === "manual") {
+                const { g } = l;
+                return (
+                  <tr key={`manual-${l.chave}`} className="hover:bg-background">
+                    <td className="td">
+                      <details>
+                        <summary className="cursor-pointer font-medium text-primary">
+                          Entrada manual de peças
+                        </summary>
+                        <ul className="mt-2 space-y-1 text-xs">
+                          {g.itens.map((m) => (
+                            <li key={m.id}>
+                              <Link
+                                href={`/produtos/${m.product.id}`}
+                                className="hover:underline"
+                              >
+                                {m.product.sku} — {m.product.nome}
+                              </Link>{" "}
+                              <span className="text-muted">
+                                · {num(m.quantidade)} un × {money(m.custoUnit)}
+                                {m.observacao ? ` · ${m.observacao}` : ""}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </td>
+                    <td className="td">MANUAL</td>
+                    <td className="td text-muted">{l.chave}</td>
+                    <td className="td text-right">{g.itens.length}</td>
+                    <td className="td text-right font-medium">{money(g.valor)}</td>
+                    <td className="td">
+                      <span className={`badge ${statusBadge.LANCADO}`}>lancado</span>
+                    </td>
+                  </tr>
+                );
+              }
+              const { d } = l;
+              return (
               <tr key={d.id} className="hover:bg-background">
                 <td className="td">
                   <Link
@@ -128,7 +202,8 @@ export default async function XmlPage({
                   </span>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
