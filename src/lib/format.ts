@@ -25,7 +25,12 @@ export function date(value: Date | string | null | undefined): string {
 export function dateTime(value: Date | string | null | undefined): string {
   if (!value) return "-";
   const d = typeof value === "string" ? new Date(value) : value;
-  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  // o servidor roda em UTC: sem o fuso, 18:44 em Codó saía como 21:44
+  return d.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  });
 }
 
 /** Converte string vinda de formulario ("1.234,56" ou "1234.56") em number */
