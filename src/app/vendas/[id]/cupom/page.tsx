@@ -41,9 +41,14 @@ export default async function CupomPage({
             />
           )}
           <p className="font-bold uppercase">
-            {company?.nomeFantasia ?? company?.razaoSocial}
+            {company?.nomeFantasia || company?.razaoSocial}
           </p>
-          <p>{company?.razaoSocial}</p>
+          {/* sem nome fantasia (ou igual), a razão social já está no título */}
+          {company?.nomeFantasia &&
+            company.nomeFantasia.trim().toUpperCase() !==
+              company.razaoSocial.trim().toUpperCase() && (
+              <p>{company.razaoSocial}</p>
+            )}
           <p>CNPJ {company?.cnpj}</p>
           <p>
             {company?.logradouro}, {company?.numero} — {company?.municipio}/
