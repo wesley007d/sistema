@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buscaPorPalavras } from "@/lib/busca";
 import { can, requireDb } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
 import { CatalogoTabs } from "@/components/CatalogoTabs";
@@ -26,14 +27,7 @@ export default async function ProdutosPage({
       where: {
         ativo: !verInativos,
         ...(termo
-          ? {
-              OR: [
-                { nome: { contains: termo } },
-                { sku: { contains: termo } },
-                { codigoBarras: { contains: termo } },
-                { marca: { contains: termo } },
-              ],
-            }
+          ? buscaPorPalavras(termo, ["nome", "sku", "codigoBarras", "marca"])
           : {}),
       },
       include: { category: true },

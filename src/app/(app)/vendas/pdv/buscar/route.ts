@@ -1,4 +1,5 @@
 import { requireDbAnyPermission } from "@/lib/auth";
+import { buscaPorPalavras } from "@/lib/busca";
 import { semDesconto } from "@/lib/desconto";
 
 export async function GET(req: Request) {
@@ -10,12 +11,7 @@ export async function GET(req: Request) {
     db.product.findMany({
       where: {
         ativo: true,
-        OR: [
-          { nome: { contains: q } },
-          { sku: { contains: q } },
-          { codigoBarras: { contains: q } },
-          { marca: { contains: q } },
-        ],
+        ...buscaPorPalavras(q, ["nome", "sku", "codigoBarras", "marca"]),
       },
       orderBy: { nome: "asc" },
       take: 20,
@@ -35,7 +31,7 @@ export async function GET(req: Request) {
     db.service.findMany({
       where: {
         ativo: true,
-        OR: [{ nome: { contains: q } }, { codigo: { contains: q } }],
+        ...buscaPorPalavras(q, ["nome", "codigo"]),
       },
       orderBy: { nome: "asc" },
       take: 10,

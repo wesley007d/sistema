@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buscaPorPalavras } from "@/lib/busca";
 import { requireDb } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
 import { formatCpfCnpj } from "@/lib/format";
@@ -21,14 +22,7 @@ export default async function ParceirosPage({
   const termo = q.trim();
   const parceiros = await db.partner.findMany({
     where: termo
-      ? {
-          OR: [
-            { nome: { contains: termo } },
-            { nomeFantasia: { contains: termo } },
-            { cpfCnpj: { contains: termo } },
-            { email: { contains: termo } },
-          ],
-        }
+      ? buscaPorPalavras(termo, ["nome", "nomeFantasia", "cpfCnpj", "email"])
       : undefined,
     orderBy: { nome: "asc" },
     take: 200,
