@@ -9,6 +9,7 @@ import { gerarSkuProduto } from "@/lib/produto-sku";
 import { espalharMarca } from "@/lib/marca-ean";
 import { conferirAdmin } from "@/lib/aprovacao";
 import { conferirCodigo } from "@/lib/autorizacao-remota";
+import { lancarCompraManual } from "@/lib/finance";
 import {
   MIME_IMAGEM_OK,
   apagarArquivo,
@@ -139,6 +140,13 @@ export async function createProduct(formData: FormData) {
           observacao: "Estoque inicial no cadastro",
         },
       });
+      if (estoqueInicial > 0)
+        await lancarCompraManual(
+          tx,
+          user.companyId,
+          `Entrada manual de peça: ${sku} - ${data.nome} (${estoqueInicial} un)`,
+          estoqueInicial * data.precoCusto,
+        );
     }
   });
 
@@ -291,6 +299,13 @@ export async function adjustStock(id: string, formData: FormData) {
         observacao,
       },
     });
+    if (tipo === "ENTRADA")
+      await lancarCompraManual(
+        tx,
+        user.companyId,
+        `Entrada manual de peça: ${p.sku} - ${p.nome} (${quantidade} un)`,
+        quantidade * custoUnit,
+      );
   });
 
   revalidatePath(`/produtos/${id}`);

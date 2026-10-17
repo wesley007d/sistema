@@ -67,3 +67,49 @@ export async function recomputeEntryStatus(tx: Tx, entryId: string) {
     },
   });
 }
+
+/**
+ * Compra de peça lançada à mão (sem XML): registra como paga pelo caixa
+ * padrão, igual ao "Já paguei" do XML, para o valor investido aparecer no
+ * financeiro junto com as notas.
+ */
+export async function lancarCompraManual(
+  tx: Tx,
+  companyId: string,
+  descricao: string,
+  valor: number,
+) {
+  valor = r2(valor);
+  if (!(valor > 0)) return;
+  const conta = await getDefaultCashAccount(companyId, tx);
+  const agora = new Date();
+  const entry = await tx.financialEntry.create({
+    data: {
+      companyId,
+      tipo: "PAGAR",
+      status: "PAGO",
+      descricao,
+      categoria: "Compras",
+      valor,
+      valorPago: valor,
+      vencimento: agora,
+      pagoEm: agora,
+    },
+  });
+  const settlement = await tx.settlement.create({
+    data: { companyId, entryId: entry.id, accountId: conta.id, valor, data: agora },
+  });
+  await tx.cashTransaction.create({
+    data: {
+      companyId,
+      accountId: conta.id,
+      data: agora,
+      tipo: "SAIDA",
+      valor,
+      categoria: "Compras",
+      descricao: `Baixa: ${descricao}`,
+      origem: "BAIXA_TITULO",
+      settlementId: settlement.id,
+    },
+  });
+}
