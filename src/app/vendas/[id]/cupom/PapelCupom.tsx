@@ -40,10 +40,7 @@ export function PapelCupom({ autoPrint }: { autoPrint: boolean }) {
     if (!papel) return;
     const medir = () => {
       if (pageRef.current)
-        pageRef.current.textContent = cssPagina(
-          papel,
-          document.getElementById("cupom"),
-        );
+        pageRef.current.textContent = cssPagina(papel);
     };
     medir();
     window.addEventListener("beforeprint", medir);

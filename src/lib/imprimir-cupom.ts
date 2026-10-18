@@ -15,21 +15,25 @@ export function lerPapel(): Papel {
   return "80";
 }
 
-/** CSS da largura/fonte do cupom para o papel (seletor = o elemento do cupom). */
+/** CSS da largura/fonte do cupom para o papel (seletor = o elemento do cupom).
+ * Térmica: largura da área que a cabeça imprime (bobina 80mm → 72mm,
+ * 58mm → 48mm), não a da bobina. */
 export function cssCupom(papel: Papel, sel: string) {
   return papel === "A4"
     ? `${sel} { width: 90mm; }`
-    : `${sel} { width: ${papel === "80" ? 76 : 56}mm; max-width: none;
-         padding: 2mm ${papel === "80" ? 2 : 1}mm;
+    : `${sel} { width: ${papel === "80" ? 72 : 48}mm; max-width: none;
+         padding: 1mm 1mm;
          font-size: ${papel === "80" ? 12 : 10.5}px; }
        @media print { ${sel} { margin: 0; } }`;
 }
 
-/** @page do papel; na térmica, a altura é a do conteúdo (sem sobrar bobina). */
-export function cssPagina(papel: Papel, el: HTMLElement | null) {
+/** @page do papel. Na térmica não força tamanho: usa a bobina do driver
+ * (ex.: POS-80 "80(72) x 3276mm" com "Blank space at page's end: Do not
+ * print", que descarta o resto em branco). Forçar 80mm × altura do conteúdo
+ * fazia o Windows encaixar a página na bobina e sobrava papel em cima. */
+export function cssPagina(papel: Papel) {
   if (papel === "A4") return "@page { size: A4; margin: 12mm; }";
-  const altura = el ? Math.ceil((el.scrollHeight * 25.4) / 96) + 6 : 200;
-  return `@page { size: ${papel}mm ${altura}mm; margin: 0; }`;
+  return "@page { margin: 0; }";
 }
 
 function esperarImagens(raiz: HTMLElement) {
@@ -76,7 +80,7 @@ export async function imprimirCupom(vendaId: string) {
     document.head.append(estilo, pagina);
     document.body.append(caixa);
     await esperarImagens(caixa);
-    pagina.textContent = cssPagina(papel, el);
+    pagina.textContent = cssPagina(papel);
 
     const limpar = () => {
       caixa.remove();
