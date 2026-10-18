@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { money, dateTime } from "@/lib/format";
 import { StatusBadge } from "../../notas/StatusBadge";
+import { BotaoImprimirCupom } from "@/components/ImprimirCupom";
 import { DescartarOrcamentoForm } from "../DescartarOrcamentoForm";
 import { DescartarPreVendaForm } from "../DescartarPreVendaForm";
 import { AprovacaoDescontoForm } from "../aprovacoes/AprovacaoDescontoForm";
@@ -62,13 +63,7 @@ export default async function VendaDetalhePage({
             {aguardandoAprov && podeAprovar && <AprovacaoDescontoForm id={id} />}
             {ehOrcamento && (
               <>
-                <a
-                  href={`/vendas/${venda.id}/cupom`}
-                  target="_blank"
-                  className="btn-ghost"
-                >
-                  Imprimir
-                </a>
+                <BotaoImprimirCupom vendaId={venda.id} className="btn-ghost" />
                 <form action={enviarOrcamentoAoCaixa.bind(null, id)}>
                   <button type="submit" className="btn-primary">
                     Enviar ao caixa

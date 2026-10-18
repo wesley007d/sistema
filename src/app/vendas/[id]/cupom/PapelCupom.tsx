@@ -1,23 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
-
-type Papel = "80" | "58" | "A4";
-const CHAVE = "cupomPapel";
+import {
+  CHAVE_PAPEL,
+  cssCupom,
+  cssPagina,
+  lerPapel,
+  type Papel,
+} from "@/lib/imprimir-cupom";
 
 const OPCOES: { valor: Papel; label: string }[] = [
   { valor: "80", label: "Térmica 80mm" },
   { valor: "58", label: "Térmica 58mm" },
   { valor: "A4", label: "Folha A4" },
 ];
-
-function lerPapel(): Papel {
-  try {
-    const v = localStorage.getItem(CHAVE);
-    if (v === "80" || v === "58" || v === "A4") return v;
-  } catch {}
-  return "80";
-}
 
 const MUDOU = "cupomPapel:mudou";
 function assinar(cb: () => void) {
@@ -27,14 +23,6 @@ function assinar(cb: () => void) {
     window.removeEventListener(MUDOU, cb);
     window.removeEventListener("storage", cb);
   };
-}
-
-/** Altura do cupom em mm, para a página da térmica ter o tamanho exato do
- * conteúdo (sem isso o navegador manda uma folha A4 e a bobina sai errada). */
-function alturaMm() {
-  const el = document.getElementById("cupom");
-  if (!el) return 200;
-  return Math.ceil((el.scrollHeight * 25.4) / 96) + 6;
 }
 
 /**
@@ -52,10 +40,10 @@ export function PapelCupom({ autoPrint }: { autoPrint: boolean }) {
     if (!papel) return;
     const medir = () => {
       if (pageRef.current)
-        pageRef.current.textContent =
-          papel === "A4"
-            ? "@page { size: A4; margin: 12mm; }"
-            : `@page { size: ${papel}mm ${alturaMm()}mm; margin: 0; }`;
+        pageRef.current.textContent = cssPagina(
+          papel,
+          document.getElementById("cupom"),
+        );
     };
     medir();
     window.addEventListener("beforeprint", medir);
@@ -89,19 +77,13 @@ export function PapelCupom({ autoPrint }: { autoPrint: boolean }) {
 
   function escolher(p: Papel) {
     try {
-      localStorage.setItem(CHAVE, p);
+      localStorage.setItem(CHAVE_PAPEL, p);
     } catch {}
     window.dispatchEvent(new Event(MUDOU));
   }
 
   const atual = papel ?? "80";
-  const css =
-    atual === "A4"
-      ? `#cupom { width: 90mm; }`
-      : `#cupom { width: ${atual === "80" ? 76 : 56}mm; max-width: none;
-                  padding: 2mm ${atual === "80" ? 2 : 1}mm;
-                  font-size: ${atual === "80" ? 12 : 10.5}px; }
-         @media print { #cupom { margin: 0; } }`;
+  const css = cssCupom(atual, "#cupom");
 
   return (
     <>

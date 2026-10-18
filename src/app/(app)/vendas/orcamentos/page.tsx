@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireDb } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { BotaoImprimirCupom } from "@/components/ImprimirCupom";
 import { money, dateTime } from "@/lib/format";
 import { DescartarOrcamentoForm } from "../DescartarOrcamentoForm";
 import { enviarOrcamentoAoCaixa, excluirOrcamento } from "../actions";
@@ -79,13 +80,10 @@ export default async function OrcamentosPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {!descartado && (
                   <>
-                    <a
-                      href={`/vendas/${o.id}/cupom`}
-                      target="_blank"
+                    <BotaoImprimirCupom
+                      vendaId={o.id}
                       className="btn-ghost px-2 py-1 text-xs"
-                    >
-                      Imprimir
-                    </a>
+                    />
                     <form action={enviarOrcamentoAoCaixa.bind(null, o.id)}>
                       <button
                         type="submit"

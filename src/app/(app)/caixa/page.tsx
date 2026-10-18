@@ -7,16 +7,17 @@ import { receberVenda } from "../vendas/actions";
 import { CaixaReceber } from "./CaixaReceber";
 import { abrirCaixa } from "./actions";
 import { FecharCaixaForm } from "./FecharCaixaForm";
+import { BotaoImprimirCupom, AutoImprimirCupom } from "@/components/ImprimirCupom";
 
 export const dynamic = "force-dynamic";
 
 export default async function CaixaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ venda?: string }>;
+  searchParams: Promise<{ venda?: string; imprimir?: string }>;
 }) {
   const { db } = await requireDb();
-  const { venda: vendaParam } = await searchParams;
+  const { venda: vendaParam, imprimir } = await searchParams;
   const sessao = await getOpenCashSession(db);
 
   // --- Modo receber: uma venda foi puxada pelo número ---
@@ -76,7 +77,7 @@ export default async function CaixaPage({
           action={receberVenda.bind(
             null,
             sale.id,
-            `/vendas/${sale.id}/cupom?print=1`,
+            `/caixa?imprimir=${sale.id}`,
           )}
           numero={sale.numero}
           clienteNome={sale.partner?.nome ?? "Consumidor"}
@@ -125,6 +126,7 @@ export default async function CaixaPage({
   return (
     <div>
       <PageHeader title="Caixa" subtitle="Receber vendas e imprimir cupons" />
+      {imprimir && <AutoImprimirCupom vendaId={imprimir} />}
 
       {sessao && resumo ? (
         <div className="mb-6 card p-4">
@@ -256,13 +258,10 @@ export default async function CaixaPage({
               </span>
               <span className="flex shrink-0 items-center gap-3">
                 <span className="font-medium">{money(v.total)}</span>
-                <a
-                  href={`/vendas/${v.id}/cupom?print=1`}
-                  target="_blank"
+                <BotaoImprimirCupom
+                  vendaId={v.id}
                   className="btn-ghost px-3 py-1 text-xs"
-                >
-                  Imprimir
-                </a>
+                />
               </span>
             </div>
           ))}
