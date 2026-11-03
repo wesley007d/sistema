@@ -448,9 +448,9 @@ export function PDV({
             <thead>
               <tr>
                 <th className="th">Produto</th>
-                <th className="th w-24 text-right">Qtd</th>
-                <th className="th w-28 text-right">Preço</th>
-                <th className="th w-24 text-right">Desc.</th>
+                <th className="th w-28 text-right">Qtd</th>
+                <th className="th w-32 text-right">Preço</th>
+                <th className="th w-28 text-right">Desc.</th>
                 <th className="th w-28 text-right">Total</th>
                 <th className="th w-8"></th>
               </tr>
@@ -575,7 +575,7 @@ export function PDV({
                           step="1"
                           min="1"
                           inputMode="numeric"
-                          className="input text-right"
+                          className="input-num"
                           value={r.quantidade}
                           onChange={(e) => {
                             const n = Number(e.target.value);
@@ -594,7 +594,7 @@ export function PDV({
                         <input
                           type="number"
                           step="0.01"
-                          className="input text-right"
+                          className="input-num"
                           value={r.precoUnit}
                           onChange={(e) =>
                             up(i, { precoUnit: Number(e.target.value) })
@@ -610,7 +610,7 @@ export function PDV({
                           type="number"
                           step="0.01"
                           placeholder="0"
-                          className="input text-right"
+                          className="input-num"
                           value={r.desconto || ""}
                           onChange={(e) =>
                             up(i, { desconto: Number(e.target.value) || 0 })

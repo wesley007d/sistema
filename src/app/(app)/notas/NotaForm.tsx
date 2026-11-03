@@ -198,10 +198,10 @@ export function NotaForm({
             <thead>
               <tr>
                 <th className="th">Descrição</th>
-                <th className="th w-20 text-right">Qtd</th>
-                <th className="th w-28 text-right">Vlr unit.</th>
+                <th className="th w-28 text-right">Qtd</th>
+                <th className="th w-32 text-right">Vlr unit.</th>
                 {kind === "NFE" ? (
-                  <th className="th w-24 text-right">Desconto</th>
+                  <th className="th w-28 text-right">Desconto</th>
                 ) : (
                   <th className="th w-20 text-right">ISS %</th>
                 )}
@@ -232,7 +232,7 @@ export function NotaForm({
                       <input
                         type="number"
                         step="0.001"
-                        className="input text-right"
+                        className="input-num"
                         value={r.quantidade}
                         onChange={(e) =>
                           update(i, { quantidade: Number(e.target.value) })
@@ -243,7 +243,7 @@ export function NotaForm({
                       <input
                         type="number"
                         step="0.01"
-                        className="input text-right"
+                        className="input-num"
                         value={r.precoUnit}
                         onChange={(e) =>
                           update(i, { precoUnit: Number(e.target.value) })
@@ -255,7 +255,7 @@ export function NotaForm({
                         <input
                           type="number"
                           step="0.01"
-                          className="input text-right"
+                          className="input-num"
                           value={r.desconto}
                           onChange={(e) =>
                             update(i, { desconto: Number(e.target.value) })
@@ -265,7 +265,7 @@ export function NotaForm({
                         <input
                           type="number"
                           step="0.01"
-                          className="input text-right"
+                          className="input-num"
                           value={r.aliquotaIss}
                           onChange={(e) =>
                             update(i, { aliquotaIss: Number(e.target.value) })

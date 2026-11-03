@@ -98,6 +98,13 @@ body {
   }
 }
 
+/* Caixa numérica dentro de tabela (Qtd, preço, desconto): menos espaçamento e
+   largura mínima para o número não ficar escondido atrás das setinhas. */
+@utility input-num {
+  @apply input px-2 text-right tabular-nums;
+  min-width: 4.5rem;
+}
+
 @utility label {
   @apply mb-1 block text-xs font-medium text-muted;
 }

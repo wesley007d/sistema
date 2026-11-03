@@ -350,9 +350,9 @@ export function OSEditor({
               <tr>
                 <th className="th w-16">Tipo</th>
                 <th className="th">Descrição</th>
-                <th className="th w-20 text-right">Qtd</th>
-                <th className="th w-28 text-right">Vlr unit.</th>
-                <th className="th w-24 text-right">Desc.</th>
+                <th className="th w-28 text-right">Qtd</th>
+                <th className="th w-32 text-right">Vlr unit.</th>
+                <th className="th w-28 text-right">Desc.</th>
                 <th className="th w-28 text-right">Total</th>
                 {!readOnly && <th className="th w-8"></th>}
               </tr>
@@ -403,7 +403,7 @@ export function OSEditor({
                         step="1"
                         min="1"
                         inputMode="numeric"
-                        className="input text-right"
+                        className="input-num"
                         value={r.quantidade}
                         disabled={readOnly}
                         onChange={(e) => {
@@ -416,7 +416,7 @@ export function OSEditor({
                       <input
                         type="number"
                         step="0.01"
-                        className="input text-right"
+                        className="input-num"
                         value={r.precoUnit}
                         disabled={
                           readOnly ||
@@ -431,7 +431,7 @@ export function OSEditor({
                       <input
                         type="number"
                         step="0.01"
-                        className="input text-right"
+                        className="input-num"
                         value={r.desconto}
                         disabled={readOnly}
                         onChange={(e) =>
