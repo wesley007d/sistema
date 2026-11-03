@@ -5,16 +5,22 @@ import { LIMITE_DESCONTO_VENDEDOR } from "@/lib/aprovacao";
 import { getOpenCashSession } from "@/lib/caixa";
 import { PageHeader } from "@/components/PageHeader";
 import { PDV } from "./PDV";
-import { finalizarVenda, salvarOrcamento, salvarPreVenda } from "../actions";
+import { semDesconto } from "@/lib/desconto";
+import {
+  atualizarOrcamento,
+  finalizarVenda,
+  salvarOrcamento,
+  salvarPreVenda,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function PdvPage({
   searchParams,
 }: {
-  searchParams: Promise<{ venda?: string }>;
+  searchParams: Promise<{ venda?: string; orcamento?: string }>;
 }) {
-  const { venda: vendaParam } = await searchParams;
+  const { venda: vendaParam, orcamento: orcamentoId } = await searchParams;
 
   // Receber venda agora é só na tela Caixa. Mantém links antigos funcionando.
   if (vendaParam) {
@@ -44,6 +50,47 @@ export default async function PdvPage({
     }),
     getOpenCashSession(db),
   ]);
+
+  // Editar orçamento já feito: carrega os itens no PDV e regrava o mesmo número.
+  const orc = orcamentoId
+    ? await db.sale.findUnique({
+        where: { id: orcamentoId },
+        include: { items: { include: { product: true } } },
+      })
+    : null;
+  if (orcamentoId && (!orc || orc.status !== "ORCAMENTO")) {
+    redirect(orc ? `/vendas/${orc.id}` : "/vendas/orcamentos");
+  }
+  const orcamento = orc
+    ? {
+        id: orc.id,
+        numero: orc.numero,
+        operadorNome: null,
+        partnerId: orc.partnerId,
+        descontoGeral: orc.desconto,
+        acrescimo: orc.acrescimo,
+        observacao: orc.observacao,
+        itens: orc.items.map((it) => ({
+          tipo: (it.tipo === "SERVICO" ? "SERVICO" : "PECA") as "PECA" | "SERVICO",
+          productId: it.productId ?? "",
+          serviceId: it.serviceId,
+          mecanico: it.mecanico ?? undefined,
+          sku: it.product?.sku ?? "",
+          descricao: it.descricao,
+          quantidade: it.quantidade,
+          // peça: preço atual do cadastro (o servidor também trava isso p/ não-admin)
+          precoUnit:
+            it.tipo !== "SERVICO" && it.product && user.role !== "ADMIN"
+              ? it.product.precoVenda
+              : it.precoUnit,
+          desconto: it.desconto,
+          estoque: it.product?.estoque ?? 0,
+          localizacao: it.product?.localizacao ?? null,
+          imagemUrl: it.product?.imagemUrl ?? null,
+          semDesconto: it.tipo !== "SERVICO" && semDesconto(it.product?.ncm),
+        })),
+      }
+    : null;
   const mecanicos = [
     ...new Set(
       [
@@ -56,16 +103,22 @@ export default async function PdvPage({
   return (
     <div>
       <PageHeader
-        title="PDV — Venda de balcão"
+        title={orcamento ? `Editando orçamento nº ${orcamento.numero}` : "PDV — Venda de balcão"}
         subtitle={
           soPreVenda
             ? "Monte a venda e envie ao caixa. Bipe o código ou busque o produto."
             : "Bipe o código de barras ou busque o produto. Enter adiciona o item."
         }
         action={
-          <Link href="/vendas" className="btn-ghost">
-            Ver vendas
-          </Link>
+          orcamento ? (
+            <Link href={`/vendas/${orcamento.id}`} className="btn-ghost">
+              Cancelar edição
+            </Link>
+          ) : (
+            <Link href="/vendas" className="btn-ghost">
+              Ver vendas
+            </Link>
+          )
         }
       />
       {!soPreVenda && !sessaoCaixa && (
@@ -76,6 +129,16 @@ export default async function PdvPage({
         </p>
       )}
       <PDV
+        key={orcamento?.id ?? "nova"}
+        preVenda={orcamento ?? undefined}
+        editarOrcamento={
+          orcamento
+            ? {
+                salvar: atualizarOrcamento.bind(null, orcamento.id, false),
+                salvarEEnviar: atualizarOrcamento.bind(null, orcamento.id, true),
+              }
+            : undefined
+        }
         partners={parceiros}
         mecanicos={mecanicos}
         action={soPreVenda ? salvarPreVenda : finalizarVenda}

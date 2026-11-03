@@ -84,6 +84,12 @@ export default async function OrcamentosPage() {
                       vendaId={o.id}
                       className="btn-ghost px-2 py-1 text-xs"
                     />
+                    <Link
+                      href={`/vendas/pdv?orcamento=${o.id}`}
+                      className="btn-ghost px-2 py-1 text-xs"
+                    >
+                      Editar
+                    </Link>
                     <form action={enviarOrcamentoAoCaixa.bind(null, o.id)}>
                       <button
                         type="submit"

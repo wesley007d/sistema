@@ -408,8 +408,16 @@ export async function finalizarVenda(formData: FormData) {
 async function criarVendaRascunho(
   formData: FormData,
   status: "ABERTA" | "ORCAMENTO",
+  /** id de um orçamento existente: regrava ele (mesmo número) em vez de criar. */
+  editarId?: string,
 ): Promise<string> {
   const { user, db } = await requireDbAnyPermission(PDV_OU_CAIXA);
+  if (editarId) {
+    const atual = await db.sale.findUnique({ where: { id: editarId } });
+    if (!atual) throw new Error("Orçamento não encontrado. Atualize a página.");
+    if (atual.status !== "ORCAMENTO")
+      throw new Error("Só orçamentos em aberto podem ser alterados.");
+  }
   const itens = parseArrayJson(str(formData.get("itens")), cartRowSchema, "itens");
   if (itens.length === 0) throw new Error("Adicione ao menos uma peça ou serviço.");
   await travarNomeServicos(db, itens);
@@ -482,6 +490,46 @@ async function criarVendaRascunho(
     }
   }
 
+  if (editarId) {
+    await db.$transaction(async (tx) => {
+      // confere de novo dentro da tx (alguém pode ter enviado/descartado agora)
+      const atual = await tx.sale.findUniqueOrThrow({ where: { id: editarId } });
+      if (atual.status !== "ORCAMENTO")
+        throw new Error("Este orçamento acabou de mudar de situação. Atualize a página.");
+      await tx.saleItem.deleteMany({ where: { saleId: editarId } });
+      await tx.salePayment.deleteMany({ where: { saleId: editarId } });
+      await tx.sale.update({
+        where: { id: editarId },
+        data: {
+          partnerId,
+          status: statusFinal,
+          aprovadaPor,
+          aprovadaEm,
+          subtotal,
+          desconto: round(descontoGeral),
+          acrescimo: round(acrescimo),
+          total,
+          formaPagamento: formaResumo,
+          observacao,
+          items: { create: itemData.map((it) => ({ ...it, companyId: user.companyId })) },
+          payments: pagosHint.length
+            ? {
+                create: pagosHint.map((p) => ({
+                  companyId: user.companyId,
+                  forma: p.forma,
+                  valor: round(p.valor),
+                })),
+              }
+            : undefined,
+        },
+      });
+    });
+    revalidatePath("/vendas");
+    revalidatePath("/vendas/orcamentos");
+    revalidatePath(`/vendas/${editarId}`);
+    return editarId;
+  }
+
   const sale = await db.$transaction(async (tx) => {
     const numero = await nextSeq(tx, user.companyId, "venda");
     return tx.sale.create({
@@ -533,6 +581,20 @@ export async function salvarOrcamento(formData: FormData) {
   redirect(`/vendas/${id}`);
 }
 
+/**
+ * Altera um orçamento já feito (mesmo número). Com `enviar`, já manda ao caixa
+ * depois de salvar. Mesmas regras de preço/desconto da criação.
+ */
+export async function atualizarOrcamento(
+  id: string,
+  enviar: boolean,
+  formData: FormData,
+) {
+  await criarVendaRascunho(formData, enviar ? "ABERTA" : "ORCAMENTO", id);
+  if (enviar) revalidatePath("/caixa");
+  redirect(`/vendas/${id}`);
+}
+
 /** Converte um orçamento em pré-venda (aí sim entra na fila do caixa). */
 export async function enviarOrcamentoAoCaixa(id: string) {
   const { db } = await requireDbAnyPermission(PDV_OU_CAIXA);
@@ -541,6 +603,26 @@ export async function enviarOrcamentoAoCaixa(id: string) {
     throw new Error("Este registro não é um orçamento.");
   await db.sale.update({ where: { id }, data: { status: "ABERTA" } });
   revalidatePath("/vendas");
+  revalidatePath("/caixa");
+  revalidatePath("/");
+  redirect(`/vendas/${id}`);
+}
+
+/**
+ * Desfaz o "Enviar ao caixa": a pré-venda (ABERTA, ainda não recebida) volta a
+ * ser orçamento — sai da fila do caixa e pode ser editada de novo.
+ */
+export async function voltarParaOrcamento(id: string) {
+  const { db } = await requireDbAnyPermission(PDV_OU_CAIXA);
+  // updateMany com status no where: se o caixa receber ao mesmo tempo, não volta
+  const r = await db.sale.updateMany({
+    where: { id, status: "ABERTA" },
+    data: { status: "ORCAMENTO" },
+  });
+  if (r.count === 0)
+    throw new Error("Só venda aguardando o caixa (ainda não recebida) volta para orçamento.");
+  revalidatePath("/vendas");
+  revalidatePath("/vendas/orcamentos");
   revalidatePath("/caixa");
   revalidatePath("/");
   redirect(`/vendas/${id}`);

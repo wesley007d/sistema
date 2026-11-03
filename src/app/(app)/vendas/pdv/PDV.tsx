@@ -102,6 +102,7 @@ export function PDV({
   soPreVenda = false,
   limiteDesconto = 10,
   podeAlterarPreco = false,
+  editarOrcamento,
 }: {
   partners: { id: string; nome: string }[];
   /** Nomes de mecânicos já usados — sugestões no campo da linha de serviço. */
@@ -116,8 +117,13 @@ export function PDV({
   limiteDesconto?: number;
   /** Só o administrador muda o preço de peça (o servidor também confere). */
   podeAlterarPreco?: boolean;
+  /** Alterando um orçamento já feito: `preVenda` traz os dados e tudo fica editável. */
+  editarOrcamento?: {
+    salvar: (formData: FormData) => void;
+    salvarEEnviar: (formData: FormData) => void;
+  };
 }) {
-  const recebendo = !!preVenda;
+  const recebendo = !!preVenda && !editarOrcamento;
   const [cart, setCart] = useState<CartRow[]>(preVenda?.itens ?? []);
   const [busca, setBusca] = useState("");
   const [resultados, setResultados] = useState<BuscaResult[]>([]);
@@ -310,6 +316,13 @@ export function PDV({
           Recebendo a <strong>venda nº {preVenda.numero}</strong>
           {preVenda.operadorNome ? ` — vendedor: ${preVenda.operadorNome}` : ""}.
           {" "}Confira os itens, lance o pagamento e finalize.
+        </div>
+      )}
+      {editarOrcamento && preVenda && (
+        <div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-2 text-sm text-blue-800 lg:col-span-2">
+          Alterando o <strong>orçamento nº {preVenda.numero}</strong>. Adicione,
+          tire ou mude as quantidades e clique em <strong>Salvar alterações</strong>
+          {" "}— o número do orçamento continua o mesmo.
         </div>
       )}
       <input type="hidden" name="itens" value={JSON.stringify(cart)} />
@@ -687,7 +700,7 @@ export function PDV({
           </div>
         </section>
 
-        <section className={`card p-4 ${soPreVenda ? "hidden" : ""}`}>
+        <section className={`card p-4 ${soPreVenda || editarOrcamento ? "hidden" : ""}`}>
           <p className="label">Pagamento</p>
           <div className="mb-2 flex flex-wrap gap-1">
             {FORMAS.map((f) => (
@@ -776,7 +789,7 @@ export function PDV({
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
           />
-          <label className="mt-3 flex items-center gap-2 text-sm">
+          <label className={`mt-3 flex items-center gap-2 text-sm ${editarOrcamento ? "hidden" : ""}`}>
             <input
               type="checkbox"
               checked={emitirNfe}
@@ -784,7 +797,7 @@ export function PDV({
             />
             Emitir NF-e ao finalizar
           </label>
-          <p className="mt-1 text-xs text-muted">
+          <p className={`mt-1 text-xs text-muted ${editarOrcamento ? "hidden" : ""}`}>
             A NF-e cobre só as peças. Serviços/mão de obra não entram na NF-e.
           </p>
         </section>
@@ -817,7 +830,33 @@ export function PDV({
           </section>
         )}
 
-        {soPreVenda ? (
+        {editarOrcamento ? (
+          <>
+            <button
+              type="submit"
+              formAction={editarOrcamento.salvar}
+              disabled={!carrinhoOk}
+              className="btn-primary w-full py-3 text-base"
+            >
+              {carrinhoOk
+                ? `Salvar alterações — ${money(total)}`
+                : "Salvar alterações"}
+            </button>
+            <button
+              type="submit"
+              formAction={editarOrcamento.salvarEEnviar}
+              disabled={!carrinhoOk}
+              className="btn-ghost w-full"
+            >
+              Salvar e enviar ao caixa
+            </button>
+            {precisaAprovacaoDesc && (
+              <p className="text-center text-xs text-muted">
+                Sem liberação de admin, o orçamento vai para a fila de aprovação.
+              </p>
+            )}
+          </>
+        ) : soPreVenda ? (
           <>
             <button
               type="submit"

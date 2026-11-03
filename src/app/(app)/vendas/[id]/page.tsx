@@ -13,6 +13,7 @@ import {
   cancelarVenda,
   enviarOrcamentoAoCaixa,
   excluirOrcamento,
+  voltarParaOrcamento,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,9 @@ export default async function VendaDetalhePage({
             {ehOrcamento && (
               <>
                 <BotaoImprimirCupom vendaId={venda.id} className="btn-ghost" />
+                <Link href={`/vendas/pdv?orcamento=${id}`} className="btn-ghost">
+                  Editar orçamento
+                </Link>
                 <form action={enviarOrcamentoAoCaixa.bind(null, id)}>
                   <button type="submit" className="btn-primary">
                     Enviar ao caixa
@@ -75,6 +79,16 @@ export default async function VendaDetalhePage({
               <form action={excluirOrcamento.bind(null, id)}>
                 <ConfirmButton message="Apagar este orçamento DE VEZ do sistema? Não dá para desfazer.">
                   Apagar de vez
+                </ConfirmButton>
+              </form>
+            )}
+            {venda.status === "ABERTA" && (
+              <form action={voltarParaOrcamento.bind(null, id)}>
+                <ConfirmButton
+                  message="Voltar esta venda para orçamento? Ela sai da fila do caixa e pode ser editada."
+                  className="btn-ghost"
+                >
+                  Voltar para orçamento
                 </ConfirmButton>
               </form>
             )}

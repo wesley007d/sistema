@@ -3,7 +3,8 @@ import { requireDb } from "@/lib/auth";
 import { PageHeader } from "@/components/PageHeader";
 import { money, dateTime } from "@/lib/format";
 import { getOpenCashSession, resumoSessaoCaixa } from "@/lib/caixa";
-import { receberVenda } from "../vendas/actions";
+import { receberVenda, voltarParaOrcamento } from "../vendas/actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { CaixaReceber } from "./CaixaReceber";
 import { abrirCaixa } from "./actions";
 import { FecharCaixaForm } from "./FecharCaixaForm";
@@ -61,9 +62,19 @@ export default async function CaixaPage({
           title={`Receber venda nº ${sale.numero}`}
           subtitle={sale.operador?.nome ? `Vendedor: ${sale.operador.nome}` : undefined}
           action={
-            <Link href="/caixa" className="btn-ghost">
-              ← voltar
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <form action={voltarParaOrcamento.bind(null, sale.id)}>
+                <ConfirmButton
+                  message={`Voltar a venda nº ${sale.numero} para orçamento? Ela sai da fila do caixa e pode ser editada.`}
+                  className="btn-ghost"
+                >
+                  Voltar para orçamento
+                </ConfirmButton>
+              </form>
+              <Link href="/caixa" className="btn-ghost">
+                ← voltar
+              </Link>
+            </div>
           }
         />
         {!sessao ? (
