@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { AtalhosTeclado } from "@/components/AtalhosTeclado";
-import { isOwner, permissionsOf, requireDb } from "@/lib/auth";
+import { getEmpresaLayout, isOwner, permissionsOf, requireUser } from "@/lib/auth";
 import { cssTemaEmpresa } from "@/lib/cor";
 import { MENSALIDADE_PADRAO, situacaoAssinatura } from "@/lib/assinatura";
 import { money } from "@/lib/format";
@@ -11,25 +11,14 @@ import { money } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const { user, db } = await requireDb();
+  const user = await requireUser();
   // Enquanto a senha for provisória, nada do sistema abre: manda pra troca de
   // senha (rota fora deste grupo, sem sidebar, evita loop de redirect).
   if (user.senhaProvisoria) redirect("/trocar-senha");
   const allowed = permissionsOf(user);
   const owner = isOwner(user);
-  const empresa = await db.company.findUnique({
-    where: { id: user.companyId },
-    select: {
-      logoUrl: true,
-      corPrimaria: true,
-      nomeFantasia: true,
-      tema: true,
-      menuColorido: true,
-      assinaturaStatus: true,
-      assinaturaVence: true,
-      assinaturaValor: true,
-    },
-  });
+  // já veio junto com a sessão (mesma consulta)
+  const empresa = await getEmpresaLayout();
 
   // Assinatura vencida/cancelada bloqueia todo mundo, menos o dono da plataforma.
   const assinatura = situacaoAssinatura({

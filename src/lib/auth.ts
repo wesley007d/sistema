@@ -243,14 +243,31 @@ export async function destroySession() {
   }
 }
 
-/** Usuário logado (ou null). Memoizado por request. */
-export const getCurrentUser = cache(async (): Promise<User | null> => {
+/** Dados da empresa que o layout usa em toda tela (vêm junto com a sessão). */
+const EMPRESA_LAYOUT_SELECT = {
+  logoUrl: true,
+  corPrimaria: true,
+  nomeFantasia: true,
+  tema: true,
+  menuColorido: true,
+  assinaturaStatus: true,
+  assinaturaVence: true,
+  assinaturaValor: true,
+} as const;
+
+/**
+ * Sessão + usuário + empresa numa consulta só (antes eram 2 idas ao banco em
+ * sequência em toda tela). Memoizado por request.
+ */
+const carregarSessao = cache(async () => {
   const jar = await cookies();
   const sid = jar.get(COOKIE)?.value;
   if (!sid) return null;
   const session = await prisma.session.findUnique({
     where: { id: sid },
-    include: { user: true },
+    include: {
+      user: { include: { company: { select: EMPRESA_LAYOUT_SELECT } } },
+    },
   });
   if (!session || session.expiraEm < new Date() || !session.user.ativo) {
     return null;
@@ -261,14 +278,26 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
     await prisma.session.deleteMany({ where: { id: sid } }).catch(() => {});
     return null;
   }
-  // Marca atividade da sessão (throttled) p/ a Área do Dono saber quem está online.
+  // Marca atividade da sessão (throttled) p/ a Área do Dono saber quem está
+  // online. Em segundo plano: a tela não espera essa gravação.
   if (agora - session.ultimaAtividade.getTime() > ATIVIDADE_THROTTLE_MS) {
-    await prisma.session
+    void prisma.session
       .update({ where: { id: sid }, data: { ultimaAtividade: new Date(agora) } })
       .catch(() => {});
   }
-  return session.user;
+  const { company, ...user } = session.user;
+  return { user: user as User, empresa: company };
 });
+
+/** Usuário logado (ou null). Memoizado por request. */
+export const getCurrentUser = cache(
+  async (): Promise<User | null> => (await carregarSessao())?.user ?? null,
+);
+
+/** Logo/cor/tema/assinatura da empresa do usuário logado (sem consulta extra). */
+export async function getEmpresaLayout() {
+  return (await carregarSessao())?.empresa ?? null;
+}
 
 // ---------- autorização ----------
 

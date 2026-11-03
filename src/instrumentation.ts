@@ -1,6 +1,37 @@
 import type { Instrumentation } from "next";
 
 /**
+ * O banco (Neon, plano grátis) "dorme" depois de 5 min sem uso e a 1ª tela
+ * depois disso demora ~0,5–1 s a mais para ele acordar. No horário da loja
+ * (seg–sáb, 7h–20h de Brasília) mandamos um "select 1" a cada 4 min para ele
+ * ficar acordado. Fora desse horário deixa dormir (não gasta a cota do plano).
+ */
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.NODE_ENV !== "production") return;
+  const g = globalThis as unknown as { __bancoAcordado?: boolean };
+  if (g.__bancoAcordado) return;
+  g.__bancoAcordado = true;
+
+  const { prisma } = await import("@/lib/db");
+  const horarioDaLoja = () => {
+    const partes = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      weekday: "short",
+      hour: "numeric",
+      hourCycle: "h23",
+    }).formatToParts(new Date());
+    const dia = partes.find((p) => p.type === "weekday")?.value;
+    const hora = Number(partes.find((p) => p.type === "hour")?.value);
+    return dia !== "Sun" && hora >= 7 && hora < 20;
+  };
+  const timer = setInterval(() => {
+    if (horarioDaLoja()) prisma.$queryRaw`select 1`.catch(() => {});
+  }, 4 * 60 * 1000);
+  timer.unref?.();
+}
+
+/**
  * Em produção o Next esconde a mensagem dos erros do servidor e o navegador só
  * recebe um código (digest). Guardamos aqui a mensagem real com esse código
  * para a tela de erro conseguir mostrar o motivo.
