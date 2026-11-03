@@ -3,6 +3,65 @@ import { prisma } from "@/lib/db";
 import { MODULES, ONLINE_JANELA_MS, PLATAFORMA_COMPANY_ID } from "@/lib/auth";
 import { situacaoAssinatura } from "@/lib/assinatura";
 import { AutoRefresh } from "./AutoRefresh";
+import { erroUsoNeon, neonConfigurado, usoNeon, type UsoNeon } from "@/lib/neon-uso";
+
+/** Cota de processamento do banco (Neon grátis: 100 h/mês; estourou, para). */
+function CotaBanco({ uso, configurado, erro }: { uso: UsoNeon | null; configurado: boolean; erro: string | null }) {
+  const h = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  if (!configurado) {
+    return (
+      <div className="card p-4 text-sm">
+        <p className="font-medium">Cota do banco de dados — não monitorada</p>
+        <p className="mt-1 text-muted">
+          Cadastre <code>NEON_API_KEY</code> nas variáveis de ambiente da Hostinger
+          (chave criada em console.neon.tech → Account settings → API keys) para ver aqui
+          quanto das 100 horas grátis do mês já foi usado.
+        </p>
+      </div>
+    );
+  }
+  if (!uso) {
+    return (
+      <div className="card p-4 text-sm">
+        <p className="font-medium">Cota do banco de dados</p>
+        <p className="mt-1 text-red-600">Não consegui consultar o Neon{erro ? `: ${erro}` : "."}</p>
+      </div>
+    );
+  }
+  const pct = Math.min(1, uso.pct);
+  const cor = uso.pct >= 0.85 ? "bg-red-500" : uso.pct >= 0.6 ? "bg-amber-500" : "bg-green-600";
+  const corProj = uso.pctProjecao >= 0.85 ? "text-red-600" : uso.pctProjecao >= 0.6 ? "text-amber-700" : "text-green-700";
+  return (
+    <div className="card p-4 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-medium">Cota do banco de dados (Neon grátis)</p>
+        <p>
+          <b className="text-lg">{h(uso.usadoCuH)} h</b>
+          <span className="text-muted"> de {h(uso.limiteCuH)} h ({Math.round(uso.pct * 100)}%)</span>
+        </p>
+      </div>
+      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-surface-2">
+        <div className={`h-full ${cor}`} style={{ width: `${pct * 100}%` }} />
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        Projeção até {fmtData(uso.fim)}:{" "}
+        <b className={corProj}>{h(uso.projecaoCuH)} h ({Math.round(uso.pctProjecao * 100)}%)</b>
+        {" · "}Manter banco acordado:{" "}
+        {uso.acordadoLiberado ? (
+          <b className="text-green-700">ligado (8h–19h)</b>
+        ) : (
+          <b className="text-red-600">desligado para poupar a cota</b>
+        )}
+        {" · "}conferido {uso.consultadoEm.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
+      </p>
+      {uso.pct >= 1 && (
+        <p className="mt-2 text-xs font-medium text-red-600">
+          Cota estourada: o Neon para o banco até o próximo mês. Assine o plano pago em console.neon.tech.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +132,7 @@ function Barras({ dados }: { dados: { rotulo: string; valor: number }[] }) {
 }
 
 export default async function DonoPage() {
+  const neon = await usoNeon();
   const agora = new Date();
   const agoraMs = agora.getTime();
   const limiteOnline = new Date(agoraMs - ONLINE_JANELA_MS);
@@ -465,6 +525,11 @@ export default async function DonoPage() {
           hint="somando todas as empresas"
         />
       </div>
+
+      {/* Cota do banco */}
+      <section className="mt-8">
+        <CotaBanco uso={neon} configurado={neonConfigurado()} erro={erroUsoNeon()} />
+      </section>
 
       {/* Crescimento */}
       <section className="mt-8">

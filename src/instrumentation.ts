@@ -3,8 +3,10 @@ import type { Instrumentation } from "next";
 /**
  * O banco (Neon, plano grátis) "dorme" depois de 5 min sem uso e a 1ª tela
  * depois disso demora ~0,5–1 s a mais para ele acordar. No horário da loja
- * (seg–sáb, 7h–20h de Brasília) mandamos um "select 1" a cada 4 min para ele
- * ficar acordado. Fora desse horário deixa dormir (não gasta a cota do plano).
+ * (seg–sáb, 8h–19h de Brasília) mandamos um "select 1" a cada 4 min para ele
+ * ficar acordado. Fora desse horário deixa dormir. Pior caso ~72 de 100
+ * CU-hora/mês; com NEON_API_KEY o uso é conferido de hora em hora e isto
+ * desliga sozinho perto do limite (ver lib/neon-uso.ts).
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -23,10 +25,13 @@ export async function register() {
     }).formatToParts(new Date());
     const dia = partes.find((p) => p.type === "weekday")?.value;
     const hora = Number(partes.find((p) => p.type === "hour")?.value);
-    return dia !== "Sun" && hora >= 7 && hora < 20;
+    return dia !== "Sun" && hora >= 8 && hora < 19;
   };
-  const timer = setInterval(() => {
-    if (horarioDaLoja()) prisma.$queryRaw`select 1`.catch(() => {});
+  const { podeManterAcordado } = await import("@/lib/neon-uso");
+  const timer = setInterval(async () => {
+    if (!horarioDaLoja()) return;
+    if (!(await podeManterAcordado().catch(() => true))) return;
+    prisma.$queryRaw`select 1`.catch(() => {});
   }, 4 * 60 * 1000);
   timer.unref?.();
 }

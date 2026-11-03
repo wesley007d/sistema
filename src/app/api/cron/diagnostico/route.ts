@@ -22,6 +22,7 @@ export async function GET(req: Request) {
     "RESEND_API_KEY",
     "EMAIL_FROM",
     "ALERTA_CADASTRO_EMAIL",
+    "NEON_API_KEY",
   ];
   const variaveis = Object.fromEntries(nomes.map((n) => [n, !!process.env[n]?.trim()]));
   // nomes parecidos (espaço, letra trocada) que indicam variável cadastrada errada
