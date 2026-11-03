@@ -7,6 +7,8 @@ import type { Instrumentation } from "next";
  * ficar acordado. Fora desse horário deixa dormir. Pior caso ~72 de 100
  * CU-hora/mês; com NEON_API_KEY o uso é conferido de hora em hora e isto
  * desliga sozinho perto do limite (ver lib/neon-uso.ts).
+ * Também visita /api/ping pelo endereço público (7h–21h) para a Hostinger não
+ * desligar o app por falta de acesso.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -25,11 +27,21 @@ export async function register() {
     }).formatToParts(new Date());
     const dia = partes.find((p) => p.type === "weekday")?.value;
     const hora = Number(partes.find((p) => p.type === "hour")?.value);
-    return dia !== "Sun" && hora >= 8 && hora < 19;
+    return { domingo: dia === "Sun", hora };
   };
   const { podeManterAcordado } = await import("@/lib/neon-uso");
+  const siteUrl = (process.env.SITE_URL || "https://sistemanegocios.com.br").replace(/\/$/, "");
   const timer = setInterval(async () => {
-    if (!horarioDaLoja()) return;
+    const { domingo, hora } = horarioDaLoja();
+    // Sistema (Node): a Hostinger desliga o app sem acesso e religar custa
+    // segundos. Uma visita pelo endereço público conta como acesso. Não usa o
+    // banco, então pode ir das 7h às 21h, todo dia.
+    if (hora >= 7 && hora < 21) {
+      fetch(`${siteUrl}/api/ping`, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
+        .catch(() => {});
+    }
+    // Banco (Neon): gasta cota, então só seg–sáb 8h–19h e se a cota deixar.
+    if (domingo || hora < 8 || hora >= 19) return;
     if (!(await podeManterAcordado().catch(() => true))) return;
     prisma.$queryRaw`select 1`.catch(() => {});
   }, 4 * 60 * 1000);
